@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, Student, Absence, Supervision, ControlRequest, DeliveryLog, SystemConfig } from './types';
 import Sidebar from './components/Sidebar';
@@ -66,8 +67,8 @@ const App: React.FC = () => {
 
       setUsers(u);
       setStudents(s);
-      setSupervisions(sv.filter(i => i.date.startsWith(activeDate)));
-      setAbsences(ab.filter(i => i.date.startsWith(activeDate)));
+      setSupervisions(sv); // نجلب الكل للمطابقة في التقارير
+      setAbsences(ab); // نجلب الكل للتقارير التراكمية
       setDeliveryLogs(dl.filter(i => i.time.startsWith(activeDate)));
       setControlRequests(cr.filter(i => i.time.startsWith(activeDate)));
 
@@ -119,25 +120,24 @@ const App: React.FC = () => {
   const renderContent = () => {
     if (!currentUser) return null;
     switch (activeTab) {
-      case 'dashboard': return <AdminDashboardOverview stats={{ students: students.length, users: users.length, activeSupervisions: supervisions.length }} absences={absences} supervisions={supervisions} users={users} deliveryLogs={deliveryLogs} studentsList={students} onBroadcast={(m, t) => db.notifications.broadcast(m, t, currentUser.full_name)} systemConfig={systemConfig} />;
+      case 'dashboard': return <AdminDashboardOverview stats={{ students: students.length, users: users.length, activeSupervisions: supervisions.filter(s => s.date.startsWith(systemConfig.active_exam_date || '')).length }} absences={absences.filter(a => a.date.startsWith(systemConfig.active_exam_date || ''))} supervisions={supervisions.filter(s => s.date.startsWith(systemConfig.active_exam_date || ''))} users={users} deliveryLogs={deliveryLogs} studentsList={students} onBroadcast={(m, t) => db.notifications.broadcast(m, t, currentUser.full_name)} systemConfig={systemConfig} />;
       case 'control-manager': return <ControlManager users={users} deliveryLogs={deliveryLogs} students={students} onBroadcast={(m, t) => db.notifications.broadcast(m, t, currentUser.full_name)} onUpdateUserGrades={async (userId, grades) => { const uMatch = users.find(u => u.id === userId); if (uMatch) { await db.users.upsert([{ ...uMatch, assigned_grades: grades }]); await fetchData(); } }} systemConfig={systemConfig} absences={absences} supervisions={supervisions} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} setSystemConfig={async (cfg) => { await db.config.upsert(cfg); await fetchData(); }} onRemoveSupervision={async (id) => { await db.supervision.deleteByTeacherId(id); await fetchData(); }} />;
       case 'teachers': return <AdminUsersManager users={users} setUsers={async (u) => { await db.users.upsert(typeof u === 'function' ? u(users) : u); await fetchData(); }} students={students} onDeleteUser={async (id) => { if(confirm('حذف؟')) { await db.users.delete(id); await fetchData(); } }} {...commonProps} />;
       case 'students': return <AdminStudentsManager students={students} setStudents={async (s) => { await db.students.upsert(typeof s === 'function' ? s(students) : s); await fetchData(); }} onDeleteStudent={async (id) => { if(confirm('حذف؟')) { await db.students.delete(id); await fetchData(); } }} {...commonProps} />;
-      case 'committees': return <AdminSupervisionMonitor supervisions={supervisions} users={users} students={students} absences={absences} deliveryLogs={deliveryLogs} />;
-      case 'official-forms': return <AdminOfficialForms absences={absences} students={students} />;
+      case 'committees': return <AdminSupervisionMonitor supervisions={supervisions.filter(s => s.date.startsWith(systemConfig.active_exam_date || ''))} users={users} students={students} absences={absences.filter(a => a.date.startsWith(systemConfig.active_exam_date || ''))} deliveryLogs={deliveryLogs} />;
+      case 'official-forms': return <AdminOfficialForms absences={absences} students={students} supervisions={supervisions} users={users} />;
       case 'settings': return <AdminSystemSettings systemConfig={systemConfig} setSystemConfig={async (cfg) => { await db.config.upsert(cfg); await fetchData(); }} resetFunctions={{ students: async () => { if(confirm('حذف الطلاب؟')) { await supabase.from('students').delete().neq('id', '0'); await fetchData(); } }, teachers: async () => { if(confirm('حذف المعلمين؟')) { await supabase.from('users').delete().neq('role', 'ADMIN'); await fetchData(); } }, operations: async () => { if(confirm('تصفير سجلات اليوم؟')) { await supabase.from('absences').delete().gte('date', systemConfig.active_exam_date); await supabase.from('delivery_logs').delete().gte('time', systemConfig.active_exam_date); await fetchData(); } }, fullReset: () => {} }} />;
       case 'assigned-requests': return <AssistantControlView user={currentUser} requests={controlRequests} setRequests={fetchData} absences={absences} students={students} {...commonProps} />;
       case 'paper-logs': return <ControlReceiptView user={currentUser} students={students} absences={absences} deliveryLogs={deliveryLogs} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} supervisions={supervisions} users={users} controlRequests={controlRequests} setControlRequests={fetchData} {...commonProps} />;
       case 'receipt-history': return <ReceiptLogsView deliveryLogs={deliveryLogs} users={users} />;
       case 'digital-id': return <TeacherBadgeView user={currentUser} />;
-      case 'student-absences': return <CounselorAbsenceMonitor absences={absences} students={students} supervisions={supervisions} users={users} />;
-      case 'my-tasks': return <ProctorDailyAssignmentFlow user={currentUser} supervisions={supervisions} setSupervisions={async () => { await fetchData(); }} students={students} absences={absences} setAbsences={async () => { await fetchData(); }} deliveryLogs={deliveryLogs} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} sendRequest={async (txt, com) => { await db.controlRequests.insert({ from: currentUser.full_name, committee: com, text: txt, time: new Date().toISOString(), status: 'PENDING' }); await fetchData(); }} controlRequests={controlRequests} systemConfig={systemConfig} {...commonProps} />;
+      case 'student-absences': return <CounselorAbsenceMonitor absences={absences.filter(a => a.date.startsWith(systemConfig.active_exam_date || ''))} students={students} supervisions={supervisions.filter(s => s.date.startsWith(systemConfig.active_exam_date || ''))} users={users} />;
+      case 'my-tasks': return <ProctorDailyAssignmentFlow user={currentUser} supervisions={supervisions.filter(s => s.date.startsWith(systemConfig.active_exam_date || ''))} setSupervisions={async () => { await fetchData(); }} students={students} absences={absences.filter(a => a.date.startsWith(systemConfig.active_exam_date || ''))} setAbsences={async () => { await fetchData(); }} deliveryLogs={deliveryLogs} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} sendRequest={async (txt, com) => { await db.controlRequests.insert({ from: currentUser.full_name, committee: com, text: txt, time: new Date().toISOString(), status: 'PENDING' }); await fetchData(); }} controlRequests={controlRequests} systemConfig={systemConfig} {...commonProps} />;
       default: return null;
     }
   };
 
   return (
-    // هام: تمت إضافة id="app-root" هنا ليتم استهدافه وإخفاؤه عند الطباعة
     <div id="app-root" className="min-h-screen bg-[#f8fafc] font-['Tajawal'] overflow-x-hidden text-right" dir="rtl">
       {currentUser && (
         <>
