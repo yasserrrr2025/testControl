@@ -93,7 +93,7 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
 
     return (
       <div className="official-page-container">
-        <div className="official-a4-page relative flex flex-col border-[1.5pt] border-slate-900 p-6">
+        <div className="official-a4-page relative flex flex-col border-[1.5pt] border-slate-900 p-4 pt-2">
           <OfficialHeader />
           <div className="text-center mb-4">
             <p className="text-[7pt] font-black text-slate-500 mb-1">النموذج الموحد رقم: 36</p>
@@ -102,35 +102,35 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
 
           <div className="w-full border-[1pt] border-slate-900 mb-6 text-[8pt]">
              <div className="grid grid-cols-2 border-b-[1pt] border-slate-900">
-                <div className="p-2 border-l-[1pt] border-slate-900 flex justify-between items-center text-right">
+                <div className="p-2 border-l-[1pt] border-slate-900 flex justify-between items-center">
                    <span className="font-bold">اسم الطالب:</span>
                    <span className="font-black text-right flex-1 px-2">{absence.student_name}</span>
                 </div>
-                <div className="p-2 flex justify-between items-center text-right">
+                <div className="p-2 flex justify-between items-center">
                    <span className="font-bold">رقم الجلوس:</span>
                    <span className="font-black tabular-nums">{student?.seating_number || '---'}</span>
                 </div>
              </div>
              <div className="grid grid-cols-2 border-b-[1pt] border-slate-900">
-                <div className="p-2 border-l-[1pt] border-slate-900 flex justify-between items-center text-right">
+                <div className="p-2 border-l-[1pt] border-slate-900 flex justify-between items-center">
                    <span className="font-bold">اليوم:</span>
                    <span className="font-black text-right flex-1 px-2">{dayName}</span>
                 </div>
-                <div className="p-2 flex justify-between items-center text-right">
+                <div className="p-2 flex justify-between items-center">
                    <span className="font-bold">التاريخ:</span>
                    <span className="font-black tabular-nums">{new Date(absence.date).toLocaleDateString('ar-SA')}</span>
                 </div>
              </div>
              <div className="grid grid-cols-3">
-                <div className="p-2 border-l-[1pt] border-slate-900 flex justify-between items-center text-right">
+                <div className="p-2 border-l-[1pt] border-slate-900 flex justify-between items-center">
                    <span className="font-bold">اللجنة:</span>
                    <span className="font-black text-sm">{absence.committee_number}</span>
                 </div>
-                <div className="p-2 border-l-[1pt] border-slate-900 flex justify-between items-center text-right">
+                <div className="p-2 border-l-[1pt] border-slate-900 flex justify-between items-center">
                    <span className="font-bold">الصف:</span>
                    <span className="font-black">{student?.grade || '---'}</span>
                 </div>
-                <div className="p-2 flex justify-between items-center text-right">
+                <div className="p-2 flex justify-between items-center">
                    <span className="font-bold">الفصل:</span>
                    <span className="font-black">{student?.section || '---'}</span>
                 </div>
@@ -143,9 +143,9 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
               <thead className="bg-slate-50 font-bold">
                 <tr>
                   <th className="border border-slate-900 p-2 w-8 text-center">م</th>
-                  <th className="border border-slate-900 p-2 text-right">الاسم الرباعي</th>
-                  <th className="border border-slate-900 p-2 w-32 text-right">الصفة</th>
-                  <th className="border border-slate-900 p-2 w-32 text-right">التوقيع</th>
+                  <th className="border border-slate-900 p-2">الاسم الرباعي</th>
+                  <th className="border border-slate-900 p-2 w-32">الصفة</th>
+                  <th className="border border-slate-900 p-2 w-32">التوقيع</th>
                 </tr>
               </thead>
               <tbody>
@@ -155,9 +155,9 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
                   { role: 'مراقب اللجنة المعني', name: proctorName }
                 ].map((row, i) => (
                   <tr key={i} className="h-10">
-                    <td className="border border-slate-900 p-2 text-center font-bold tabular-nums">{i+1}</td>
-                    <td className="border border-slate-900 p-2 font-black px-3 text-right">{row.name}</td>
-                    <td className="border border-slate-900 p-2 font-bold px-3 text-right">{row.role}</td>
+                    <td className="border border-slate-900 p-2 text-center font-bold">{i+1}</td>
+                    <td className="border border-slate-900 p-2 font-black px-3">{row.name}</td>
+                    <td className="border border-slate-900 p-2 font-bold px-3">{row.role}</td>
                     <td className="border border-slate-900 p-2"></td>
                   </tr>
                 ))}
@@ -195,7 +195,7 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
 
     return (
       <div className="official-page-container">
-        <div className="official-a4-page relative flex flex-col border-[1.5pt] border-slate-900 p-6">
+        <div className="official-a4-page relative flex flex-col border-[1.5pt] border-slate-900 p-4 pt-2">
           <OfficialHeader />
           <div className="text-center mb-8">
             <p className="text-[7pt] font-black text-slate-500 mb-1">النموذج الموحد رقم: 31</p>
@@ -247,20 +247,23 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
   const CumulativeReport = () => {
     return (
       <div className="official-page-container">
-        <div className="official-a4-page relative flex flex-col border-[1.5pt] border-slate-900 p-6">
-          <OfficialHeader />
-          <div className="text-center mb-6">
-            <h2 className="text-[10pt] font-black mb-1 border-b-2 border-slate-900 inline-block px-8 uppercase">
-              سجل الحالات التراكمي الشامل
-            </h2>
-            <p className="text-[8pt] font-black text-slate-500 uppercase tracking-widest">
-              بيان {cumulativeType === 'ABSENT' ? 'الغياب التراكمي' : 'التأخر التراكمي'} للمرحلة
-            </p>
-          </div>
-
-          <table className="w-full border-[1pt] border-slate-900 text-[8pt] text-right border-collapse mt-4">
-            <thead className="bg-slate-50 font-black">
-              <tr className="h-10">
+        <div className="official-a4-page relative flex flex-col border-[1.5pt] border-slate-900 p-4 pt-2">
+          <table className="w-full border-collapse">
+            <thead className="table-header-group">
+              <tr>
+                <th colSpan={6} className="p-0 font-normal border-none">
+                  <OfficialHeader />
+                  <div className="text-center mb-6">
+                    <h2 className="text-[10pt] font-black mb-1 border-b-2 border-slate-900 inline-block px-8 uppercase">
+                      سجل الحالات التراكمي الشامل
+                    </h2>
+                    <p className="text-[8pt] font-black text-slate-500 uppercase tracking-widest">
+                      بيان {cumulativeType === 'ABSENT' ? 'الغياب التراكمي' : 'التأخر التراكمي'} للمرحلة
+                    </p>
+                  </div>
+                </th>
+              </tr>
+              <tr className="bg-slate-50 font-black h-10 text-[8pt]">
                 <th className="border border-slate-900 p-2 w-8 text-center">م</th>
                 <th className="border border-slate-900 p-2 text-right px-3">الاسم الكامل للطالب</th>
                 <th className="border border-slate-900 p-2 w-24 text-center">الصف</th>
@@ -271,12 +274,12 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
             </thead>
             <tbody>
               {cumulativeData.map((item, i) => (
-                <tr key={item.student.id} className="h-10">
+                <tr key={item.student.id} className="h-10 text-[8pt]">
                   <td className="border border-slate-900 p-2 font-bold tabular-nums text-center">{i+1}</td>
                   <td className="border border-slate-900 p-2 text-right font-black px-3">{item.student.name}</td>
                   <td className="border border-slate-900 p-2 text-center">{item.student.grade}</td>
                   <td className="border border-slate-900 p-2 text-center">{item.student.section}</td>
-                  <td className="border border-slate-900 p-2 font-black text-center tabular-nums">{item.count}</td>
+                  <td className="border border-slate-900 p-2 font-black text-center">{item.count}</td>
                   <td className="border border-slate-900 p-2 text-[7pt] font-mono text-center">
                     {Array.from(item.committees).join(', ')}
                   </td>
@@ -297,22 +300,18 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
          <div id="print-portal-container">
             <style>{`
                @media print {
-                  @page { size: A4 portrait; margin: 0; }
+                  @page { 
+                    size: A4 portrait; 
+                    margin: 2mm 5mm; 
+                  }
                   body { background: white; margin: 0; padding: 0; }
                   #root, .app-root, header, .no-print { display: none !important; } 
-                  #print-portal-container { 
-                    display: block !important; 
-                    position: absolute; 
-                    top: 0; 
-                    left: 0; 
-                    width: 100%; 
-                    z-index: 9999; 
-                  }
+                  #print-portal-container { display: block !important; position: absolute; top: 0; left: 0; width: 100%; z-index: 9999; }
                   .official-page-container { 
                     width: 210mm; 
-                    height: 297mm; 
+                    min-height: 297mm; 
                     page-break-after: always; 
-                    padding: 5mm; 
+                    padding: 0mm; 
                     box-sizing: border-box; 
                     display: flex; 
                     justify-content: center; 
@@ -320,12 +319,12 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
                   }
                   .official-a4-page { 
                     width: 100%; 
-                    height: 100%; 
+                    min-height: 100%; 
                     background: white; 
                     color: black; 
-                    padding-top: 0mm !important;
                   }
-                  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                  .table-header-group { display: table-header-group !important; }
+                  table { border-collapse: collapse; width: 100%; }
                }
             `}</style>
             {printType === 'INDIVIDUAL' ? (
@@ -382,7 +381,7 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
               <h3 className="text-3xl font-black text-slate-900 uppercase">النماذج الفردية (حسب التاريخ المختار)</h3>
            </div>
 
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-10">
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {dailyAbsences.length === 0 ? (
                 <div className="col-span-full py-24 text-center bg-white rounded-[4rem] border-4 border-dashed border-slate-100 flex flex-col items-center gap-6">
                   <AlertTriangle size={64} className="text-slate-200" />
