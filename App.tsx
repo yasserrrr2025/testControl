@@ -34,7 +34,7 @@ const App: React.FC = () => {
   const [notifications, setNotifications] = useState<{id: string, text: string, type?: string, created_at?: string}[]>([]);
   const [controlRequests, setControlRequests] = useState<ControlRequest[]>([]);
   const [deliveryLogs, setDeliveryLogs] = useState<DeliveryLog[]>([]);
-  const [systemConfig, setSystemConfig] = useState<SystemConfig & {active_exam_date?: string, allow_manual_join?: boolean}>({ 
+  const [systemConfig, setSystemConfig] = useState<SystemConfig>({ 
     id: 'main_config', 
     exam_start_time: '08:00', 
     exam_date: '',
@@ -42,7 +42,6 @@ const App: React.FC = () => {
     allow_manual_join: false
   });
 
-  // ميكانيكية التنبيهات المحدودة (3 فقط)
   const addLocalNotification = (input: any, type?: string) => {
     const id = Math.random().toString(36).substr(2, 9);
     const msg = typeof input === 'string' ? input : (input?.message || "تنبيه جديد من النظام");
@@ -55,40 +54,43 @@ const App: React.FC = () => {
     setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 8000);
   };
 
-  const requestNotificationPermission = async () => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      await Notification.requestPermission();
-    }
-  };
-
   const fetchData = useCallback(async () => {
     try {
-      const todayStr = new Date().toISOString().split('T')[0];
+      // 1. جلب الإعدادات أولاً لمعرفة "تاريخ اليوم النشط"
+      const cfg = await db.config.get();
+      let activeDate = new Date().toISOString().split('T')[0];
       
-      const [u, s, sv, ab, cr, dl, cfg] = await Promise.all([
+      if (cfg) {
+        setSystemConfig(prev => ({ ...prev, ...cfg }));
+        if (cfg.active_exam_date) activeDate = cfg.active_exam_date;
+      }
+
+      // 2. جلب البيانات المفلترة بناءً على التاريخ النشط
+      const [u, s, sv, ab, cr, dl] = await Promise.all([
         db.users.getAll(),
         db.students.getAll(),
         db.supervision.getAll(),
         db.absences.getAll(),
         db.controlRequests.getAll(),
         db.deliveryLogs.getAll(),
-        db.config.get()
       ]);
 
       setUsers(u);
       setStudents(s);
-      setSupervisions(sv.filter(i => i.date.startsWith(todayStr)));
-      setAbsences(ab.filter(i => i.date.startsWith(todayStr)));
-      setDeliveryLogs(dl);
-      setControlRequests(cr);
-      if (cfg) setSystemConfig(prev => ({ ...prev, ...cfg }));
+      
+      // فلترة البيانات اليومية بناءً على التاريخ النشط في الإعدادات
+      setSupervisions(sv.filter(i => i.date.startsWith(activeDate)));
+      setAbsences(ab.filter(i => i.date.startsWith(activeDate)));
+      
+      // البلاغات وسجلات الاستلام لليوم النشط فقط في الواجهات الرئيسية
+      setDeliveryLogs(dl.filter(i => i.time.startsWith(activeDate)));
+      setControlRequests(cr.filter(i => i.time.startsWith(activeDate)));
 
-      // التنبيهات الميدانية (بث مركزي)
       if (currentUser) {
         const { data: notes } = await supabase.from('notifications')
           .select('*')
           .or(`target_role.eq.ALL,target_role.eq.${currentUser.role}`)
-          .gte('created_at', todayStr)
+          .gte('created_at', activeDate)
           .order('created_at', { ascending: false })
           .limit(1);
 
@@ -96,12 +98,7 @@ const App: React.FC = () => {
           const lastNote = notes[0];
           setNotifications(prev => {
             const exists = prev.some(n => n.id === lastNote.id);
-            if (!exists) {
-              if (Notification.permission === 'granted') {
-                new Notification('تنبيه الكنترول', { body: lastNote.text, icon: 'https://www.raed.net/img?id=1488645' });
-              }
-              return [{ id: lastNote.id, text: lastNote.text, type: 'broadcast' }, ...prev].slice(0, 3);
-            }
+            if (!exists) return [{ id: lastNote.id, text: lastNote.text, type: 'broadcast' }, ...prev].slice(0, 3);
             return prev;
           });
         }
@@ -117,41 +114,20 @@ const App: React.FC = () => {
       try { 
         const user = JSON.parse(savedUser);
         setCurrentUser(user);
-        requestNotificationPermission();
-        
         const lastTab = localStorage.getItem('activeTab');
         if (lastTab) setActiveTab(lastTab);
-        else {
-           // Default Tabs based on roles
-           if (user.role === 'ADMIN') setActiveTab('dashboard');
-           else if (user.role === 'PROCTOR') setActiveTab('my-tasks');
-           else if (user.role === 'CONTROL_MANAGER') setActiveTab('control-manager');
-           else setActiveTab('my-tasks');
-        }
+        else setActiveTab(user.role === 'ADMIN' ? 'dashboard' : 'my-tasks');
       } catch (e) { localStorage.removeItem('currentUser'); }
     }
-    
     fetchData();
     const interval = setInterval(fetchData, 15000); 
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  const handleLogin = (user: User) => {
-    setCurrentUser(user);
-    localStorage.setItem('currentUser', JSON.stringify(user));
-    requestNotificationPermission();
-    // التحويل التلقائي حسب الدور
-    const defaultTab = user.role === 'ADMIN' ? 'dashboard' : 
-                      user.role === 'CONTROL_MANAGER' ? 'control-manager' : 
-                      user.role === 'PROCTOR' ? 'my-tasks' : 'my-tasks';
-    setActiveTab(defaultTab);
-  };
-
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem('currentUser');
     localStorage.removeItem('activeTab');
-    setShowCommandCenter(false);
   };
 
   const renderContent = () => {
@@ -169,21 +145,14 @@ const App: React.FC = () => {
           onBroadcast={(m, t) => db.notifications.broadcast(m, t, currentUser.full_name)} 
           onUpdateUserGrades={async (userId, grades) => {
             const uMatch = users.find(u => u.id === userId);
-            if (uMatch) {
-              await db.users.upsert([{ ...uMatch, assigned_grades: grades }]);
-              await fetchData();
-            }
+            if (uMatch) { await db.users.upsert([{ ...uMatch, assigned_grades: grades }]); await fetchData(); }
           }}
           systemConfig={systemConfig}
           absences={absences}
           supervisions={supervisions}
           setDeliveryLogs={async (log: DeliveryLog) => { await db.deliveryLogs.upsert(log); await fetchData(); }}
           setSystemConfig={async (cfg: any) => { await db.config.upsert(cfg); await fetchData(); }}
-          onRemoveSupervision={async (teacherId: string) => { 
-            await db.supervision.deleteByTeacherId(teacherId); 
-            await fetchData(); 
-            addLocalNotification('تم تحرير اللجنة لتمكين مراقب آخر من الدخول.'); 
-          }}
+          onRemoveSupervision={async (teacherId: string) => { await db.supervision.deleteByTeacherId(teacherId); await fetchData(); }}
         />;
       case 'teachers':
         return <AdminUsersManager users={users} setUsers={async (u: any) => { await db.users.upsert(typeof u === 'function' ? u(users) : u); await fetchData(); }} students={students} onDeleteUser={async (id) => { if(confirm('حذف؟')){ await db.users.delete(id); await fetchData(); } }} {...commonProps} />;
@@ -197,7 +166,7 @@ const App: React.FC = () => {
         return <AdminSystemSettings systemConfig={systemConfig} setSystemConfig={async (cfg) => { await db.config.upsert(cfg); await fetchData(); }} resetFunctions={{
           students: async () => { if(confirm('حذف الطلاب؟')){ await supabase.from('students').delete().neq('id', '0'); await fetchData(); } },
           teachers: async () => { if(confirm('حذف المعلمين؟')){ await supabase.from('users').delete().neq('role', 'ADMIN'); await fetchData(); } },
-          operations: async () => { if(confirm('تصفير اليوم؟')){ await supabase.from('absences').delete().neq('id', '0'); await supabase.from('delivery_logs').delete().neq('id', '0'); await fetchData(); } },
+          operations: async () => { if(confirm('تصفير سجلات اليوم (تاريخ اليوم النشط)؟')){ await supabase.from('absences').delete().gte('date', systemConfig.active_exam_date); await supabase.from('delivery_logs').delete().gte('time', systemConfig.active_exam_date); await fetchData(); } },
           fullReset: () => {}
         }} />;
       case 'assigned-requests':
@@ -205,6 +174,7 @@ const App: React.FC = () => {
       case 'paper-logs':
         return <ControlReceiptView user={currentUser} students={students} absences={absences} deliveryLogs={deliveryLogs} setDeliveryLogs={async (log: DeliveryLog) => { await db.deliveryLogs.upsert(log); await fetchData(); }} supervisions={supervisions} users={users} controlRequests={controlRequests} setControlRequests={fetchData} {...commonProps} />;
       case 'receipt-history':
+        // سجل الاستلام يعرض الأرشيف كاملاً (لا نستخدم الفلترة هنا)
         return <ReceiptLogsView deliveryLogs={deliveryLogs} users={users} />;
       case 'digital-id':
         return <TeacherBadgeView user={currentUser} />;
@@ -220,7 +190,7 @@ const App: React.FC = () => {
           setAbsences={async () => { await fetchData(); }} 
           deliveryLogs={deliveryLogs} 
           setDeliveryLogs={async (log: Partial<DeliveryLog>) => { await db.deliveryLogs.upsert(log); await fetchData(); }} 
-          sendRequest={async (txt: string, com: string) => { await db.controlRequests.insert({ from: currentUser.full_name, committee: com, text: txt, time: new Date().toLocaleTimeString('ar-SA'), status: 'PENDING' }); await fetchData(); }} 
+          sendRequest={async (txt: string, com: string) => { await db.controlRequests.insert({ from: currentUser.full_name, committee: com, text: txt, time: new Date().toISOString(), status: 'PENDING' }); await fetchData(); }} 
           controlRequests={controlRequests} 
           systemConfig={systemConfig}
           {...commonProps} 
@@ -241,42 +211,12 @@ const App: React.FC = () => {
                 {notifications.length > 0 && <span className="absolute -top-1 -right-1 bg-red-600 w-4 h-4 rounded-full text-[8px] text-white flex items-center justify-center font-bold">{notifications.length}</span>}
              </div>
           </header>
+          {/* Fix: use correct state setter setIsSidebarCollapsed instead of undefined setIsCollapsed */}
           <Sidebar user={currentUser} onLogout={handleLogout} activeTab={activeTab} setActiveTab={(t) => { setActiveTab(t); localStorage.setItem('activeTab', t); }} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} isCollapsed={isSidebarCollapsed} setIsCollapsed={setIsSidebarCollapsed} controlRequests={controlRequests} />
-          
-          {currentUser.role === 'ADMIN' && (
-            <button onClick={() => setShowCommandCenter(true)} className="fixed bottom-24 lg:bottom-10 left-10 z-[100] bg-slate-950 text-white p-6 rounded-[2.5rem] shadow-2xl hover:scale-110 active:scale-95 transition-all flex items-center gap-4 group no-print border-2 border-blue-600/30">
-              <Monitor size={32} className="group-hover:text-blue-400" />
-              <div className="text-right hidden md:block">
-                 <p className="text-[10px] font-black uppercase tracking-widest text-blue-400">Command Center</p>
-                 <p className="text-sm font-black">شاشة العرض المركزية</p>
-              </div>
-            </button>
-          )}
         </>
       )}
-
-      {showCommandCenter && (
-        <div className="fixed inset-0 z-[1000] no-print">
-          <div className="absolute top-6 left-6 z-[1001]"><button onClick={() => setShowCommandCenter(false)} className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-full backdrop-blur-md transition-all"><X size={24} /></button></div>
-          <ControlRoomMonitor absences={absences} supervisions={supervisions} users={users} deliveryLogs={deliveryLogs} students={students} requests={controlRequests} />
-        </div>
-      )}
-
-      <div className="fixed top-4 left-4 z-[500] flex flex-col gap-3 w-80 max-w-[calc(100vw-2rem)] no-print">
-        {notifications.map(n => (
-          <div key={n.id} className={`${n.type === 'broadcast' ? 'bg-blue-600 border-blue-400 shadow-blue-500/30' : 'bg-slate-900 border-slate-700 shadow-black/50'} text-white border-r-8 px-6 py-5 rounded-3xl flex items-start gap-4 animate-slide-up relative overflow-hidden shadow-2xl`}>
-             <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 blur-3xl rounded-full -mr-12 -mt-12"></div>
-             <Bell size={24} className={`shrink-0 mt-1 ${n.type === 'broadcast' ? 'animate-pulse text-white' : 'text-blue-400'}`} />
-             <div className="flex-1 relative z-10">
-               <p className="font-bold text-[13px] leading-relaxed break-words">{n.text}</p>
-               <button onClick={() => setNotifications(prev => prev.filter(nn => nn.id !== n.id))} className="mt-2 text-[10px] font-black uppercase text-blue-200 hover:text-white transition-colors">إخفاء</button>
-             </div>
-          </div>
-        ))}
-      </div>
-
       <main className={`transition-all duration-300 min-h-screen ${currentUser ? (isSidebarCollapsed ? 'lg:mr-24' : 'lg:mr-80') : ''} ${currentUser ? 'p-6 lg:p-10 pt-24 lg:pt-10' : ''}`}>
-        {currentUser ? renderContent() : <Login users={users} onLogin={handleLogin} />}
+        {currentUser ? renderContent() : <Login users={users} onLogin={(u) => { setCurrentUser(u); localStorage.setItem('currentUser', JSON.stringify(u)); }} />}
       </main>
     </div>
   );

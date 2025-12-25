@@ -78,4 +78,6 @@ export interface SystemConfig {
   id: string;
   exam_start_time: string; 
   exam_date: string;
+  active_exam_date?: string;
+  allow_manual_join?: boolean;
 }
