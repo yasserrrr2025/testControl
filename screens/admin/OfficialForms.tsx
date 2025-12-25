@@ -102,35 +102,35 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
 
           <div className="w-full border-[1pt] border-slate-900 mb-6 text-[8pt]">
              <div className="grid grid-cols-2 border-b-[1pt] border-slate-900">
-                <div className="p-2 border-l-[1pt] border-slate-900 flex justify-between items-center">
+                <div className="p-2 border-l-[1pt] border-slate-900 flex justify-between items-center text-right">
                    <span className="font-bold">اسم الطالب:</span>
                    <span className="font-black text-right flex-1 px-2">{absence.student_name}</span>
                 </div>
-                <div className="p-2 flex justify-between items-center">
+                <div className="p-2 flex justify-between items-center text-right">
                    <span className="font-bold">رقم الجلوس:</span>
                    <span className="font-black tabular-nums">{student?.seating_number || '---'}</span>
                 </div>
              </div>
              <div className="grid grid-cols-2 border-b-[1pt] border-slate-900">
-                <div className="p-2 border-l-[1pt] border-slate-900 flex justify-between items-center">
+                <div className="p-2 border-l-[1pt] border-slate-900 flex justify-between items-center text-right">
                    <span className="font-bold">اليوم:</span>
                    <span className="font-black text-right flex-1 px-2">{dayName}</span>
                 </div>
-                <div className="p-2 flex justify-between items-center">
+                <div className="p-2 flex justify-between items-center text-right">
                    <span className="font-bold">التاريخ:</span>
                    <span className="font-black tabular-nums">{new Date(absence.date).toLocaleDateString('ar-SA')}</span>
                 </div>
              </div>
              <div className="grid grid-cols-3">
-                <div className="p-2 border-l-[1pt] border-slate-900 flex justify-between items-center">
+                <div className="p-2 border-l-[1pt] border-slate-900 flex justify-between items-center text-right">
                    <span className="font-bold">اللجنة:</span>
                    <span className="font-black text-sm">{absence.committee_number}</span>
                 </div>
-                <div className="p-2 border-l-[1pt] border-slate-900 flex justify-between items-center">
+                <div className="p-2 border-l-[1pt] border-slate-900 flex justify-between items-center text-right">
                    <span className="font-bold">الصف:</span>
                    <span className="font-black">{student?.grade || '---'}</span>
                 </div>
-                <div className="p-2 flex justify-between items-center">
+                <div className="p-2 flex justify-between items-center text-right">
                    <span className="font-bold">الفصل:</span>
                    <span className="font-black">{student?.section || '---'}</span>
                 </div>
@@ -143,9 +143,9 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
               <thead className="bg-slate-50 font-bold">
                 <tr>
                   <th className="border border-slate-900 p-2 w-8 text-center">م</th>
-                  <th className="border border-slate-900 p-2">الاسم الرباعي</th>
-                  <th className="border border-slate-900 p-2 w-32">الصفة</th>
-                  <th className="border border-slate-900 p-2 w-32">التوقيع</th>
+                  <th className="border border-slate-900 p-2 text-right">الاسم الرباعي</th>
+                  <th className="border border-slate-900 p-2 w-32 text-right">الصفة</th>
+                  <th className="border border-slate-900 p-2 w-32 text-right">التوقيع</th>
                 </tr>
               </thead>
               <tbody>
@@ -155,9 +155,9 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
                   { role: 'مراقب اللجنة المعني', name: proctorName }
                 ].map((row, i) => (
                   <tr key={i} className="h-10">
-                    <td className="border border-slate-900 p-2 text-center font-bold">{i+1}</td>
-                    <td className="border border-slate-900 p-2 font-black px-3">{row.name}</td>
-                    <td className="border border-slate-900 p-2 font-bold px-3">{row.role}</td>
+                    <td className="border border-slate-900 p-2 text-center font-bold tabular-nums">{i+1}</td>
+                    <td className="border border-slate-900 p-2 font-black px-3 text-right">{row.name}</td>
+                    <td className="border border-slate-900 p-2 font-bold px-3 text-right">{row.role}</td>
                     <td className="border border-slate-900 p-2"></td>
                   </tr>
                 ))}
@@ -276,7 +276,7 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
                   <td className="border border-slate-900 p-2 text-right font-black px-3">{item.student.name}</td>
                   <td className="border border-slate-900 p-2 text-center">{item.student.grade}</td>
                   <td className="border border-slate-900 p-2 text-center">{item.student.section}</td>
-                  <td className="border border-slate-900 p-2 font-black text-center">{item.count}</td>
+                  <td className="border border-slate-900 p-2 font-black text-center tabular-nums">{item.count}</td>
                   <td className="border border-slate-900 p-2 text-[7pt] font-mono text-center">
                     {Array.from(item.committees).join(', ')}
                   </td>
@@ -300,9 +300,32 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
                   @page { size: A4 portrait; margin: 0; }
                   body { background: white; margin: 0; padding: 0; }
                   #root, .app-root, header, .no-print { display: none !important; } 
-                  #print-portal-container { display: block !important; position: absolute; top: 0; left: 0; width: 100%; z-index: 9999; }
-                  .official-page-container { width: 210mm; height: 297mm; page-break-after: always; padding: 5mm; box-sizing: border-box; display: flex; justify-content: center; background: white; }
-                  .official-a4-page { width: 100%; height: 100%; background: white; color: black; }
+                  #print-portal-container { 
+                    display: block !important; 
+                    position: absolute; 
+                    top: 0; 
+                    left: 0; 
+                    width: 100%; 
+                    z-index: 9999; 
+                  }
+                  .official-page-container { 
+                    width: 210mm; 
+                    height: 297mm; 
+                    page-break-after: always; 
+                    padding: 5mm; 
+                    box-sizing: border-box; 
+                    display: flex; 
+                    justify-content: center; 
+                    background: white; 
+                  }
+                  .official-a4-page { 
+                    width: 100%; 
+                    height: 100%; 
+                    background: white; 
+                    color: black; 
+                    padding-top: 0mm !important;
+                  }
+                  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                }
             `}</style>
             {printType === 'INDIVIDUAL' ? (
@@ -359,7 +382,7 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
               <h3 className="text-3xl font-black text-slate-900 uppercase">النماذج الفردية (حسب التاريخ المختار)</h3>
            </div>
 
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-10">
               {dailyAbsences.length === 0 ? (
                 <div className="col-span-full py-24 text-center bg-white rounded-[4rem] border-4 border-dashed border-slate-100 flex flex-col items-center gap-6">
                   <AlertTriangle size={64} className="text-slate-200" />

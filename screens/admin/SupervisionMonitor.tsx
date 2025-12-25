@@ -64,7 +64,7 @@ const AdminSupervisionMonitor: React.FC<Props> = ({ supervisions, users, student
                  <input type="text" placeholder="أدخل اسم المادة..." className="w-full p-4 bg-white/10 border border-white/10 rounded-2xl font-bold outline-none" value={reportInfo.subject} onChange={e => setReportInfo({...reportInfo, subject: e.target.value})} />
               </div>
            </div>
-           <button onClick={() => window.print()} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xl shadow-xl hover:bg-blue-500 transition-all flex items-center justify-center gap-4">
+           <button onClick={() => window.print()} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xl shadow-xl hover:bg-blue-500 transition-all flex items-center justify-center gap-4 active:scale-95">
              <Printer size={28} /> استخراج المسير للطباعة
            </button>
         </div>
@@ -79,7 +79,7 @@ const AdminSupervisionMonitor: React.FC<Props> = ({ supervisions, users, student
                    <th className="p-6">المراقب</th>
                    <th className="p-6">الصف</th>
                    <th className="p-6 text-center">الطلاب</th>
-                   <th className="p-6 text-center">الغياب</th>
+                   <th className="p-6 text-center text-red-600">الغياب</th>
                    <th className="p-6 text-center">مستلم الكنترول</th>
                  </tr>
                </thead>
@@ -89,8 +89,8 @@ const AdminSupervisionMonitor: React.FC<Props> = ({ supervisions, users, student
                        <td className="p-6 font-black">لجنة {stat.committee_number}</td>
                        <td className="p-6 text-sm font-black">{stat.proctor_name}</td>
                        <td className="p-6 text-xs text-blue-600 font-black">{stat.grade}</td>
-                       <td className="p-6 text-center">{stat.total}</td>
-                       <td className="p-6 text-center text-red-600">{stat.absent}</td>
+                       <td className="p-6 text-center tabular-nums">{stat.total}</td>
+                       <td className="p-6 text-center tabular-nums text-red-600 font-black">{stat.absent}</td>
                        <td className="p-6 text-center font-black">{stat.receiver}</td>
                     </tr>
                   ))}
@@ -99,19 +99,21 @@ const AdminSupervisionMonitor: React.FC<Props> = ({ supervisions, users, student
          </div>
       </div>
 
-      {/* منطقة الطباعة الرسمية - مجهزة لتكرار الترويسة */}
+      {/* منطقة الطباعة الرسمية - مجهزة لتكرار الترويسة والعناوين */}
       <div className="print-only w-full">
         <table className="w-full text-right border-collapse">
-          {/* thead with table-header-group ensures repetition */}
+          {/* thead ensures repetition of the cliché and titles on every page */}
           <thead className="table-header-group">
             <tr>
-              <th colSpan={10} className="border-none p-0">
-                <OfficialHeader />
-                <div className="text-center mb-6">
-                  <h2 className="text-[10pt] font-black border-b-2 border-slate-900 pb-1 inline-block px-12 uppercase tracking-tighter">مسير المراقبة واستلام المظاريف النهائي</h2>
-                  <div className="flex justify-center gap-10 text-[8pt] font-bold mt-2">
-                    <span>التاريخ: {reportInfo.date}</span>
-                    <span>المادة الدراسية: {reportInfo.subject || '................'}</span>
+              <th colSpan={10} className="border-none p-0 text-right">
+                <div className="print-cliche-wrapper">
+                  <OfficialHeader />
+                  <div className="text-center mb-4">
+                    <h2 className="text-[10pt] font-black border-b-2 border-slate-900 pb-1 inline-block px-12 uppercase tracking-tighter">مسير المراقبة واستلام المظاريف النهائي</h2>
+                    <div className="flex justify-center gap-10 text-[8pt] font-bold mt-2">
+                      <span>التاريخ: {reportInfo.date}</span>
+                      <span>المادة الدراسية: {reportInfo.subject || '................'}</span>
+                    </div>
                   </div>
                 </div>
               </th>
@@ -132,14 +134,14 @@ const AdminSupervisionMonitor: React.FC<Props> = ({ supervisions, users, student
           <tbody>
             {detailedStats.map((stat, i) => (
               <tr key={i} className="text-[8pt] page-break-inside-avoid">
-                <td className="border-[1pt] border-slate-900 p-2 font-bold text-center">{i+1}</td>
-                <td className="border-[1pt] border-slate-900 p-2 font-black text-[9pt] text-center">{stat.committee_number}</td>
+                <td className="border-[1pt] border-slate-900 p-2 font-bold text-center tabular-nums">{i+1}</td>
+                <td className="border-[1pt] border-slate-900 p-2 font-black text-[9pt] text-center tabular-nums">{stat.committee_number}</td>
                 <td className="border-[1pt] border-slate-900 p-2 text-right font-black px-3 leading-tight break-words">{stat.proctor_name}</td>
                 <td className="border-[1pt] border-slate-900 p-2 h-10"></td>
                 <td className="border-[1pt] border-slate-900 p-2 font-bold text-center">{stat.grade}</td>
-                <td className="border-[1pt] border-slate-900 p-2 font-bold text-center">{stat.total}</td>
-                <td className="border-[1pt] border-slate-900 p-2 font-black text-center">{stat.present}</td>
-                <td className="border-[1pt] border-slate-900 p-2 text-red-700 font-bold text-center">{stat.absent}</td>
+                <td className="border-[1pt] border-slate-900 p-2 font-bold text-center tabular-nums">{stat.total}</td>
+                <td className="border-[1pt] border-slate-900 p-2 font-black bg-slate-50 text-center tabular-nums">{stat.present}</td>
+                <td className="border-[1pt] border-slate-900 p-2 text-red-700 font-bold text-center tabular-nums">{stat.absent}</td>
                 <td className="border-[1pt] border-slate-900 p-2 text-right font-black px-3 leading-tight break-words">{stat.isDone ? stat.receiver : ''}</td>
                 <td className="border-[1pt] border-slate-900 p-2 h-10"></td>
               </tr>
@@ -166,14 +168,32 @@ const AdminSupervisionMonitor: React.FC<Props> = ({ supervisions, users, student
 
       <style>{`
         @media print {
-          @page { size: A4 portrait; margin: 0.5cm; }
-          body { background: white !important; -webkit-print-color-adjust: exact; }
+          @page { 
+            size: A4 portrait; 
+            margin: 0; /* Removing page margins to control it via CSS */
+          }
+          body { 
+            background: white !important; 
+            -webkit-print-color-adjust: exact;
+            margin: 0;
+            padding: 0;
+          }
           .no-print { display: none !important; }
-          .print-only { display: block !important; }
+          .print-only { 
+            display: block !important; 
+            width: 100%;
+          }
+          /* Lift the cliché higher */
+          .print-cliche-wrapper {
+            margin-top: 0mm !important; 
+            padding-top: 5mm !important;
+          }
           table { width: 100%; border-collapse: collapse; }
           thead { display: table-header-group !important; }
           tfoot { display: table-footer-group !important; }
           tr { page-break-inside: avoid; }
+          /* Ensure text alignment in thead is correct for RTL */
+          thead th { text-align: right; }
         }
       `}</style>
     </div>
