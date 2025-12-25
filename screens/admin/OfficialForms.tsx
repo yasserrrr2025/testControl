@@ -45,24 +45,25 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
     return Object.values(map).sort((a, b) => b.count - a.count);
   }, [allAbsences, allDelays, cumulativeType, students]);
 
-  // دالة لجلب مستخدم عشوائي حسب الدور
   const getRandomUserByRole = (role: string) => {
     const filtered = users.filter(u => u.role === role);
-    if (filtered.length === 0) return '........................';
+    if (filtered.length === 0) return '................';
     return filtered[Math.floor(Math.random() * filtered.length)].full_name;
   };
 
-  // دالة لجلب عضو الكنترول المسند له صف الطالب
   const getControlMemberForGrade = (grade: string) => {
     const member = users.find(u => u.role === 'CONTROL' && u.assigned_grades?.includes(grade));
-    return member?.full_name || '........................';
+    return member?.full_name || '................';
   };
 
-  // دالة لجلب المراقب الفعلي للجنة
   const getProctorName = (committeeNum: string, date: string) => {
     const sv = supervisions.find(s => s.committee_number === committeeNum && s.date.startsWith(date.split('T')[0]));
     const user = users.find(u => u.id === sv?.teacher_id);
-    return user?.full_name || '........................';
+    return user?.full_name || '................';
+  };
+
+  const getArabicDayName = (dateStr: string) => {
+    return new Intl.DateTimeFormat('ar-SA', { weekday: 'long' }).format(new Date(dateStr));
   };
 
   const triggerPrint = (queue: Absence[], type: 'INDIVIDUAL' | 'CUMULATIVE' = 'INDIVIDUAL') => {
@@ -81,40 +82,39 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
     return () => window.removeEventListener('afterprint', handleAfterPrint);
   }, []);
 
-  // --- مكونات النماذج ---
-
   const AbsenceForm = ({ absence }: { absence: Absence }) => {
     const student = students.find(s => s.national_id === absence.student_id);
     const proctorName = getProctorName(absence.committee_number, absence.date);
     const headName = getRandomUserByRole('CONTROL_MANAGER');
     const controlName = getControlMemberForGrade(student?.grade || '');
     const counselorName = getRandomUserByRole('COUNSELOR');
+    const dayName = getArabicDayName(absence.date);
 
     return (
       <div className="official-page-container print-text-base">
         <div className="official-a4-page relative flex flex-col border-[1.5pt] border-slate-900 p-6">
           <OfficialHeader />
           
-          <div className="text-center mb-6">
+          <div className="text-center mb-4">
             <p className="text-[7pt] font-black text-slate-500 mb-1">النموذج الموحد رقم: 36</p>
-            <h2 className="text-[10pt] font-black mb-2 border-b-2 border-slate-900 inline-block px-8 pb-1">محضر إثبات غياب طالب</h2>
+            <h2 className="text-[10pt] font-black mb-1 border-b-2 border-slate-900 inline-block px-8">محضر إثبات غياب طالب</h2>
           </div>
 
           <div className="w-full border-[1pt] border-slate-900 mb-6 text-[8pt]">
              <div className="grid grid-cols-2 border-b-[1pt] border-slate-900">
                 <div className="p-2 border-l-[1pt] border-slate-900 flex justify-between items-center">
                    <span className="font-bold">اسم الطالب:</span>
-                   <span className="font-black">{absence.student_name}</span>
+                   <span className="font-black text-right flex-1 px-2">{absence.student_name}</span>
                 </div>
                 <div className="p-2 flex justify-between items-center">
                    <span className="font-bold">رقم الجلوس:</span>
-                   <span className="font-black tabular-nums">{student?.seating_number || '............'}</span>
+                   <span className="font-black tabular-nums">{student?.seating_number || '---'}</span>
                 </div>
              </div>
              <div className="grid grid-cols-2 border-b-[1pt] border-slate-900">
                 <div className="p-2 border-l-[1pt] border-slate-900 flex justify-between items-center">
                    <span className="font-bold">اليوم:</span>
-                   <span className="font-black">........................</span>
+                   <span className="font-black text-right flex-1 px-2">{dayName}</span>
                 </div>
                 <div className="p-2 flex justify-between items-center">
                    <span className="font-bold">التاريخ:</span>
@@ -128,22 +128,22 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
                 </div>
                 <div className="p-2 border-l-[1pt] border-slate-900 flex justify-between items-center">
                    <span className="font-bold">الصف:</span>
-                   <span className="font-black">{student?.grade || '.........'}</span>
+                   <span className="font-black">{student?.grade || '---'}</span>
                 </div>
                 <div className="p-2 flex justify-between items-center">
                    <span className="font-bold">الفصل:</span>
-                   <span className="font-black">{student?.section || '.........'}</span>
+                   <span className="font-black">{student?.section || '---'}</span>
                 </div>
              </div>
           </div>
 
           <div className="mb-6">
-            <div className="bg-slate-100 p-2 border-[1pt] border-slate-900 text-center font-black text-[8pt] mb-[-1px]">بيان المصادقة والمطابقة (لجنة الكنترول)</div>
-            <table className="w-full border-[1pt] border-slate-900 text-[8pt] text-center border-collapse">
+            <div className="bg-slate-100 p-2 border-[1pt] border-slate-900 text-right font-black text-[8pt] mb-[-1px] px-4">بيان المصادقة والمطابقة (لجنة الكنترول)</div>
+            <table className="w-full border-[1pt] border-slate-900 text-[8pt] text-right border-collapse">
               <thead className="bg-slate-50 font-bold">
                 <tr>
-                  <th className="border border-slate-900 p-2 w-8">م</th>
-                  <th className="border border-slate-900 p-2 text-right">الاسم الرباعي</th>
+                  <th className="border border-slate-900 p-2 w-8 text-center">م</th>
+                  <th className="border border-slate-900 p-2">الاسم الرباعي</th>
                   <th className="border border-slate-900 p-2 w-32">الصفة</th>
                   <th className="border border-slate-900 p-2 w-32">التوقيع</th>
                 </tr>
@@ -151,13 +151,13 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
               <tbody>
                 {[
                   { role: 'رئيس لجنة الكنترول', name: headName },
-                  { role: 'عضو لجنة الكنترول (المختص)', name: controlName },
+                  { role: 'عضو لجنة الكنترول', name: controlName },
                   { role: 'مراقب اللجنة المعني', name: proctorName }
                 ].map((row, i) => (
                   <tr key={i} className="h-10">
-                    <td className="border border-slate-900 p-2 font-bold">{i+1}</td>
-                    <td className="border border-slate-900 p-2 text-right font-black">{row.name}</td>
-                    <td className="border border-slate-900 p-2 font-bold">{row.role}</td>
+                    <td className="border border-slate-900 p-2 text-center font-bold">{i+1}</td>
+                    <td className="border border-slate-900 p-2 font-black px-3">{row.name}</td>
+                    <td className="border border-slate-900 p-2 font-bold px-3">{row.role}</td>
                     <td className="border border-slate-900 p-2"></td>
                   </tr>
                 ))}
@@ -167,17 +167,17 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
 
           <div className="mt-auto grid grid-cols-2 gap-10 px-6 pb-6 text-[8pt]">
              <div className="text-center space-y-12">
-                <p className="font-black underline underline-offset-4 text-[9pt]">يعتمد / مدير المدرسة</p>
+                <p className="font-black underline underline-offset-4 text-[10pt]">يعتمد / مدير المدرسة</p>
                 <div className="space-y-1">
-                  <p className="font-bold">..............................................</p>
-                  <p className="text-slate-400 italic text-[7pt]">الختم الرسمي</p>
+                  <p className="font-bold">.........................</p>
+                  <p className="text-slate-400 italic text-[7pt]">(الختم الرسمي)</p>
                 </div>
              </div>
              <div className="text-center space-y-12">
-                <p className="font-black underline underline-offset-4 text-[9pt]">الموجه الطلابي</p>
+                <p className="font-black underline underline-offset-4 text-[10pt]">الموجه الطلابي</p>
                 <div className="space-y-1">
                   <p className="font-black">{counselorName}</p>
-                  <p className="font-bold">..............................................</p>
+                  <p className="font-bold">.........................</p>
                 </div>
              </div>
           </div>
@@ -190,50 +190,51 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
     const student = students.find(s => s.national_id === absence.student_id);
     const proctorName = getProctorName(absence.committee_number, absence.date);
     const counselorName = getRandomUserByRole('COUNSELOR');
+    const dayName = getArabicDayName(absence.date);
 
     return (
       <div className="official-page-container print-text-base">
         <div className="official-a4-page relative flex flex-col border-[1.5pt] border-slate-900 p-6">
           <OfficialHeader />
-          <div className="text-center mb-10">
+          <div className="text-center mb-8">
             <p className="text-[7pt] font-black text-slate-500 mb-1">النموذج الموحد رقم: 31</p>
-            <h2 className="text-[10pt] font-black mb-2 border-b-2 border-slate-900 inline-block px-8 pb-1">تعهد تأخر طالب عن اختبار</h2>
+            <h2 className="text-[10pt] font-black mb-1 border-b-2 border-slate-900 inline-block px-8">تعهد تأخر طالب عن اختبار</h2>
           </div>
           
-          <div className="p-8 border-[1pt] border-slate-900 bg-slate-50 leading-relaxed text-[8pt] mb-10 text-justify">
+          <div className="p-8 border-[1pt] border-slate-900 bg-slate-50 leading-relaxed text-[8pt] mb-10 text-right">
              <p className="mb-4">
-               أقر أنا الطالب / <span className="font-black text-[9pt] px-4 border-b border-slate-400">{absence.student_name}</span>
+               أقر أنا الطالب / <span className="font-black px-4 border-b border-slate-400">{absence.student_name}</span>
              </p>
              <p className="mb-4">
-               المقيد في الصف: <span className="font-black underline px-2">{student?.grade || '........'}</span> 
-               فصل: <span className="font-black underline px-2">{student?.section || '........'}</span>
+               المقيد في الصف: <span className="font-black px-2">{student?.grade || '---'}</span> 
+               فصل: <span className="font-black px-2">{student?.section || '---'}</span>
              </p>
              <p>
-               بأنني قد تأخرت عن موعد بدء اختبار اليوم <span className="font-black tabular-nums"> {new Date(absence.date).toLocaleDateString('ar-SA')} </span>، 
+               بأنني قد تأخرت عن موعد بدء اختبار اليوم <span className="font-black">{dayName}</span> الموافق <span className="font-black tabular-nums">{new Date(absence.date).toLocaleDateString('ar-SA')}</span>، 
                وأتعهد بالالتزام بالحضور المبكر في الأيام القادمة، وفي حالة تكرار ذلك أتحمل كافة الإجراءات النظامية المتبعة.
              </p>
              
              <div className="flex justify-end mt-12">
                 <div className="text-center min-w-[200px] space-y-4">
                   <p className="font-black text-[9pt]">توقيع الطالب المقر بما فيه</p>
-                  <p className="text-slate-300">................................................</p>
+                  <p className="text-slate-300">.........................</p>
                 </div>
              </div>
           </div>
 
           <div className="mt-auto grid grid-cols-2 gap-10 px-6 pb-6 text-[8pt]">
              <div className="text-center space-y-12">
-                <p className="font-black underline underline-offset-4">مراقب اللجنة</p>
+                <p className="font-black underline underline-offset-4 text-[10pt]">مراقب اللجنة</p>
                 <div className="space-y-1">
                    <p className="font-black">{proctorName}</p>
-                   <p className="font-bold">........................................</p>
+                   <p className="font-bold">.........................</p>
                 </div>
              </div>
              <div className="text-center space-y-12">
-                <p className="font-black underline underline-offset-4 text-[9pt]">الموجه الطلابي</p>
+                <p className="font-black underline underline-offset-4 text-[10pt]">الموجه الطلابي</p>
                 <div className="space-y-1">
                   <p className="font-black">{counselorName}</p>
-                  <p className="font-bold">........................................</p>
+                  <p className="font-bold">.........................</p>
                 </div>
              </div>
           </div>
@@ -248,7 +249,7 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
         <div className="official-a4-page relative flex flex-col border-[1.5pt] border-slate-900 p-6">
           <OfficialHeader />
           <div className="text-center mb-6">
-            <h2 className="text-[10pt] font-black mb-2 border-b-2 border-slate-900 inline-block px-8 pb-1 uppercase">
+            <h2 className="text-[10pt] font-black mb-1 border-b-2 border-slate-900 inline-block px-8 uppercase">
               سجل الحالات التراكمي الشامل
             </h2>
             <p className="text-[8pt] font-black text-slate-500 uppercase tracking-widest">
@@ -256,33 +257,33 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
             </p>
           </div>
 
-          <table className="w-full border-[1pt] border-slate-900 text-[8pt] text-center border-collapse mt-4">
+          <table className="w-full border-[1pt] border-slate-900 text-[8pt] text-right border-collapse mt-4">
             <thead className="bg-slate-50 font-black">
               <tr className="h-10">
-                <th className="border border-slate-900 p-2 w-8">م</th>
-                <th className="border border-slate-900 p-2 text-right">الاسم الكامل للطالب</th>
-                <th className="border border-slate-900 p-2 w-24">الصف</th>
-                <th className="border border-slate-900 p-2 w-16">الفصل</th>
-                <th className="border border-slate-900 p-2 w-20">عدد المرات</th>
-                <th className="border border-slate-900 p-2 w-32">اللجان</th>
+                <th className="border border-slate-900 p-2 w-8 text-center">م</th>
+                <th className="border border-slate-900 p-2 text-right px-3">الاسم الكامل للطالب</th>
+                <th className="border border-slate-900 p-2 w-24 text-center">الصف</th>
+                <th className="border border-slate-900 p-2 w-16 text-center">الفصل</th>
+                <th className="border border-slate-900 p-2 w-20 text-center">عدد المرات</th>
+                <th className="border border-slate-900 p-2 w-32 text-center">اللجان</th>
               </tr>
             </thead>
             <tbody>
               {cumulativeData.map((item, i) => (
                 <tr key={item.student.id} className="h-10">
-                  <td className="border border-slate-900 p-2 font-bold tabular-nums">{i+1}</td>
+                  <td className="border border-slate-900 p-2 font-bold tabular-nums text-center">{i+1}</td>
                   <td className="border border-slate-900 p-2 text-right font-black px-3">{item.student.name}</td>
-                  <td className="border border-slate-900 p-2">{item.student.grade}</td>
-                  <td className="border border-slate-900 p-2">{item.student.section}</td>
-                  <td className="border border-slate-900 p-2 font-black text-[9pt]">{item.count}</td>
-                  <td className="border border-slate-900 p-2 text-[7pt] font-mono leading-none">
+                  <td className="border border-slate-900 p-2 text-center">{item.student.grade}</td>
+                  <td className="border border-slate-900 p-2 text-center">{item.student.section}</td>
+                  <td className="border border-slate-900 p-2 font-black text-center">{item.count}</td>
+                  <td className="border border-slate-900 p-2 text-[7pt] font-mono text-center">
                     {Array.from(item.committees).join(', ')}
                   </td>
                 </tr>
               ))}
               {cumulativeData.length === 0 && (
                 <tr>
-                   <td colSpan={6} className="p-10 text-slate-300 italic">لا توجد سجلات حالياً</td>
+                   <td colSpan={6} className="p-10 text-slate-300 italic text-center">لا توجد سجلات حالياً</td>
                 </tr>
               )}
             </tbody>
@@ -290,12 +291,12 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
 
           <div className="mt-auto grid grid-cols-2 gap-10 px-6 pb-6 text-[8pt]">
              <div className="text-center space-y-12">
-                <p className="font-black underline underline-offset-4">مدير المدرسة</p>
-                <p className="font-bold">..............................................</p>
+                <p className="font-black underline text-[10pt]">مدير المدرسة</p>
+                <p className="font-bold">.........................</p>
              </div>
              <div className="text-center space-y-12">
-                <p className="font-black underline underline-offset-4">الموجه الطلابي</p>
-                <p className="font-bold">..............................................</p>
+                <p className="font-black underline text-[10pt]">الموجه الطلابي</p>
+                <p className="font-bold">.........................</p>
              </div>
           </div>
         </div>
@@ -334,7 +335,6 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
                      display: flex;
                      justify-content: center;
                      background: white;
-                     font-size: 8pt !important;
                   }
 
                   .official-a4-page {
@@ -344,9 +344,6 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
                      color: black;
                   }
                   
-                  .print-text-base { font-size: 8pt !important; }
-                  .print-text-header { font-size: 10pt !important; }
-
                   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                }
             `}</style>
@@ -367,8 +364,8 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
       {isPrinting && (
         <div className="fixed inset-0 z-[1000] bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-white">
            <Loader2 size={100} className="animate-spin text-blue-500 mb-6" />
-           <h3 className="text-4xl font-black tracking-tighter">جاري تحضير المحاضر الرسمية...</h3>
-           <p className="text-slate-400 font-bold mt-4">سيتم استخدام بيانات الإسناد الفعلي للأسماء</p>
+           <h3 className="text-4xl font-black tracking-tighter text-center">جاري تحضير المحاضر الرسمية...</h3>
+           <p className="text-slate-400 font-bold mt-4 text-center">يتم استخراج اسم اليوم ومحاذاة البيانات لليمين</p>
         </div>
       )}
 
@@ -402,14 +399,14 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
               <div className="relative z-10 flex items-center justify-between">
                 <div className="space-y-4">
                     <h3 className="text-3xl font-black flex items-center gap-4 text-red-500 underline underline-offset-8 decoration-4 decoration-red-600/30">سجل الغياب التراكمي</h3>
-                    <p className="text-sm text-slate-400 font-bold max-w-xs italic leading-relaxed">استخراج كشف شامل بكافة الطلاب الذين تغيبوا عن الاختبارات.</p>
+                    <p className="text-sm text-slate-400 font-bold max-w-xs italic leading-relaxed text-right">استخراج كشف شامل بكافة الطلاب الذين تغيبوا عن الاختبارات.</p>
                 </div>
                 <div className="text-center bg-white/5 p-8 rounded-[2.5rem] border border-white/10 min-w-[140px] shadow-inner">
                     <p className="text-6xl font-black tabular-nums tracking-tighter">{allAbsences.length}</p>
                     <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em] mt-2">حالة غياب</p>
                 </div>
               </div>
-              <button onClick={() => { setCumulativeType('ABSENT'); triggerPrint([], 'CUMULATIVE'); }} className="mt-12 w-full py-6 bg-white text-slate-900 rounded-[2rem] font-black text-xl hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-5 shadow-2xl active:scale-95">
+              <button onClick={() => { setCumulativeType('ABSENT'); triggerPrint([], 'CUMULATIVE'); }} className="mt-12 w-full py-6 bg-white text-slate-900 rounded-[2rem] font-black text-xl hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-5 shadow-2xl active:scale-95 text-center">
                 <ListChecks size={28}/> استخراج الكشف التراكمي
               </button>
           </div>
@@ -419,53 +416,16 @@ const AdminOfficialForms: React.FC<Props> = ({ absences, students, supervisions,
               <div className="relative z-10 flex items-center justify-between">
                 <div className="space-y-4">
                     <h3 className="text-3xl font-black flex items-center gap-4 text-amber-500 underline underline-offset-8 decoration-4 decoration-amber-600/30">سجل التأخر التراكمي</h3>
-                    <p className="text-sm text-slate-400 font-bold max-w-xs italic leading-relaxed">استخراج كشف شامل بالتعهدات التي تم رصدها للطلاب المتأخرين.</p>
+                    <p className="text-sm text-slate-400 font-bold max-w-xs italic leading-relaxed text-right">استخراج كشف شامل بالتعهدات التي تم رصدها للطلاب المتأخرين.</p>
                 </div>
                 <div className="text-center bg-white/5 p-8 rounded-[2.5rem] border border-white/10 min-w-[140px] shadow-inner">
                     <p className="text-6xl font-black tabular-nums tracking-tighter">{allDelays.length}</p>
                     <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em] mt-2">حالة تأخر</p>
                 </div>
               </div>
-              <button onClick={() => { setCumulativeType('LATE'); triggerPrint([], 'CUMULATIVE'); }} className="mt-12 w-full py-6 bg-white text-slate-900 rounded-[2rem] font-black text-xl hover:bg-amber-600 hover:text-white transition-all flex items-center justify-center gap-5 shadow-2xl active:scale-95">
+              <button onClick={() => { setCumulativeType('LATE'); triggerPrint([], 'CUMULATIVE'); }} className="mt-12 w-full py-6 bg-white text-slate-900 rounded-[2rem] font-black text-xl hover:bg-amber-600 hover:text-white transition-all flex items-center justify-center gap-5 shadow-2xl active:scale-95 text-center">
                 <History size={28}/> استخراج الكشف التراكمي
               </button>
-          </div>
-        </div>
-
-        <div className="space-y-8">
-          <div className="flex items-center gap-5 border-b pb-6 mt-16">
-              <div className="p-4 bg-blue-600 text-white rounded-[1.8rem] shadow-xl"><ListChecks size={28} /></div>
-              <h3 className="text-3xl font-black text-slate-900 uppercase">المحاضر الفردية المتاحة (اليوم)</h3>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {dailyAbsences.length === 0 ? (
-                <div className="col-span-full py-32 text-center bg-white rounded-[4rem] border-4 border-dashed border-slate-100 flex flex-col items-center gap-6">
-                  <AlertTriangle size={64} className="text-slate-200" />
-                  <p className="text-2xl font-black text-slate-300 italic">لم يتم رصد أي حالات (غياب/تأخر) لهذا التاريخ بعد.</p>
-                </div>
-              ) : (
-                dailyAbsences.map(a => (
-                  <div key={a.id} className="bg-white p-10 rounded-[4rem] border-2 border-slate-50 shadow-xl flex flex-col justify-between group hover:border-blue-600 hover:-translate-y-2 transition-all duration-300">
-                    <div className="space-y-6">
-                        <div className="flex justify-between items-start">
-                          <span className={`px-5 py-2 rounded-2xl font-black text-[10px] uppercase shadow-sm tracking-widest ${a.type === 'ABSENT' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
-                              {a.type === 'ABSENT' ? 'نموذج 36 - غياب' : 'نموذج 31 - تأخر'}
-                          </span>
-                          <div className="bg-slate-900 text-white px-5 py-1.5 rounded-xl text-xs font-black tabular-nums">لجنة {a.committee_number}</div>
-                        </div>
-                        <h4 className="text-2xl font-black text-slate-900 leading-tight h-14 overflow-hidden break-words">{a.student_name}</h4>
-                        <div className="flex items-center gap-3 text-slate-400 font-bold bg-slate-50 p-4 rounded-2xl border border-slate-100 italic">
-                          <Info size={16} className="text-blue-500" />
-                          <span className="tabular-nums">ID: {a.student_id}</span>
-                        </div>
-                    </div>
-                    <button onClick={() => triggerPrint([a], 'INDIVIDUAL')} className="mt-10 w-full py-5 bg-slate-100 text-slate-600 hover:bg-slate-900 hover:text-white rounded-2xl font-black text-sm transition-all flex justify-center items-center gap-4 shadow-lg active:scale-95">
-                        <Printer size={20}/> استعراض وطباعة المحضر
-                    </button>
-                  </div>
-                ))
-              )}
           </div>
         </div>
       </div>

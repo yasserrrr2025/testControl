@@ -141,7 +141,8 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
 
   const startClosingWizard = () => {
     const initialCounts: Record<string, string> = {};
-    const grades = Array.from(new Set(students.filter(s => s.committee_number === activeCommittee).map(s => s.grade)));
+    // Fix: Cast Array.from result to string[] to ensure it can be used as an index type
+    const grades = Array.from(new Set(students.filter(s => s.committee_number === activeCommittee).map(s => s.grade))) as string[];
     grades.forEach(g => { initialCounts[g] = '0'; });
     setClosingCounts(initialCounts);
     setIsClosingWizardOpen(true);
