@@ -56,7 +56,6 @@ const App: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      // 1. جلب الإعدادات أولاً لمعرفة "تاريخ اليوم النشط"
       const cfg = await db.config.get();
       let activeDate = new Date().toISOString().split('T')[0];
       
@@ -65,7 +64,6 @@ const App: React.FC = () => {
         if (cfg.active_exam_date) activeDate = cfg.active_exam_date;
       }
 
-      // 2. جلب البيانات المفلترة بناءً على التاريخ النشط
       const [u, s, sv, ab, cr, dl] = await Promise.all([
         db.users.getAll(),
         db.students.getAll(),
@@ -78,11 +76,8 @@ const App: React.FC = () => {
       setUsers(u);
       setStudents(s);
       
-      // فلترة البيانات اليومية بناءً على التاريخ النشط في الإعدادات
       setSupervisions(sv.filter(i => i.date.startsWith(activeDate)));
       setAbsences(ab.filter(i => i.date.startsWith(activeDate)));
-      
-      // البلاغات وسجلات الاستلام لليوم النشط فقط في الواجهات الرئيسية
       setDeliveryLogs(dl.filter(i => i.time.startsWith(activeDate)));
       setControlRequests(cr.filter(i => i.time.startsWith(activeDate)));
 
@@ -174,7 +169,6 @@ const App: React.FC = () => {
       case 'paper-logs':
         return <ControlReceiptView user={currentUser} students={students} absences={absences} deliveryLogs={deliveryLogs} setDeliveryLogs={async (log: DeliveryLog) => { await db.deliveryLogs.upsert(log); await fetchData(); }} supervisions={supervisions} users={users} controlRequests={controlRequests} setControlRequests={fetchData} {...commonProps} />;
       case 'receipt-history':
-        // سجل الاستلام يعرض الأرشيف كاملاً (لا نستخدم الفلترة هنا)
         return <ReceiptLogsView deliveryLogs={deliveryLogs} users={users} />;
       case 'digital-id':
         return <TeacherBadgeView user={currentUser} />;
@@ -211,12 +205,17 @@ const App: React.FC = () => {
                 {notifications.length > 0 && <span className="absolute -top-1 -right-1 bg-red-600 w-4 h-4 rounded-full text-[8px] text-white flex items-center justify-center font-bold">{notifications.length}</span>}
              </div>
           </header>
-          {/* Fix: use correct state setter setIsSidebarCollapsed instead of undefined setIsCollapsed */}
-          <Sidebar user={currentUser} onLogout={handleLogout} activeTab={activeTab} setActiveTab={(t) => { setActiveTab(t); localStorage.setItem('activeTab', t); }} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} isCollapsed={isSidebarCollapsed} setIsCollapsed={setIsSidebarCollapsed} controlRequests={controlRequests} />
+          <div className="no-print">
+            <Sidebar user={currentUser} onLogout={handleLogout} activeTab={activeTab} setActiveTab={(t) => { setActiveTab(t); localStorage.setItem('activeTab', t); }} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} isCollapsed={isSidebarCollapsed} setIsCollapsed={setIsSidebarCollapsed} controlRequests={controlRequests} />
+          </div>
         </>
       )}
       <main className={`transition-all duration-300 min-h-screen ${currentUser ? (isSidebarCollapsed ? 'lg:mr-24' : 'lg:mr-80') : ''} ${currentUser ? 'p-6 lg:p-10 pt-24 lg:pt-10' : ''}`}>
-        {currentUser ? renderContent() : <Login users={users} onLogin={(u) => { setCurrentUser(u); localStorage.setItem('currentUser', JSON.stringify(u)); }} />}
+        {currentUser ? (
+          <div className={activeTab === 'official-forms' ? '' : 'no-print'}>
+             {renderContent()}
+          </div>
+        ) : <Login users={users} onLogin={(u) => { setCurrentUser(u); localStorage.setItem('currentUser', JSON.stringify(u)); }} />}
       </main>
     </div>
   );
