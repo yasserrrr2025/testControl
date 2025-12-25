@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, GraduationCap, ClipboardList, LogOut,
   ShieldAlert, Inbox, FileText, Settings, X, ChevronRight, ChevronLeft,
   History, IdCard, UserCircle, ShieldCheck, ShieldHalf, Bell, Shield,
-  Monitor
+  Monitor, Fingerprint
 } from 'lucide-react';
 import { UserRole, User, ControlRequest } from '../types';
 import { APP_CONFIG, ROLES_ARABIC } from '../constants';
@@ -56,6 +56,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const proctorLinks: SidebarLink[] = [
     { id: 'my-tasks', label: 'رصد اللجنة', icon: ClipboardList, badge: pendingCount > 0 ? pendingCount : null },
+    { id: 'digital-id', label: 'الهوية الرقمية', icon: Fingerprint },
   ];
 
   const counselorLinks: SidebarLink[] = [
@@ -120,7 +121,6 @@ const Sidebar: React.FC<SidebarProps> = ({
           ))}
         </nav>
 
-        {/* بطاقة الهوية الرقمية الثابتة في الأسفل لجميع الرتب */}
         {(!isCollapsed || isOpen) && (
           <div className="px-6 pb-4">
             <div className="bg-[#0f172a] rounded-[2rem] p-5 border border-blue-900/30 relative overflow-hidden group shadow-2xl transition-all hover:border-blue-500/50">

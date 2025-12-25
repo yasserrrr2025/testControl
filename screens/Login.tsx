@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 import { APP_CONFIG } from '../constants';
 import { db } from '../supabase';
-import { ShieldCheck, Globe, Zap, Lock, Download } from 'lucide-react';
+import { ShieldCheck, Globe, Zap, Lock, Download, Smartphone, LayoutGrid, CheckCircle2 } from 'lucide-react';
 
 interface Props {
   users: User[];
@@ -16,10 +16,12 @@ const Login: React.FC<Props> = ({ onLogin }) => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   useEffect(() => {
-    window.addEventListener('beforeinstallprompt', (e) => {
+    const handler = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
-    });
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
   const handleInstallClick = async () => {
@@ -52,14 +54,12 @@ const Login: React.FC<Props> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-[#020617] p-6 font-['Tajawal'] relative overflow-hidden">
+    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#020617] p-6 font-['Tajawal'] relative overflow-hidden">
+      {/* Background Elements */}
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
         <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-blue-600/20 rounded-full blur-[140px] animate-pulse"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-indigo-600/20 rounded-full blur-[140px] animate-pulse" style={{ animationDelay: '2s' }}></div>
-        <div className="absolute top-[15%] right-[10%] text-white/5 animate-bounce" style={{ animationDuration: '4s' }}>
-          <ShieldCheck size={120} />
-        </div>
       </div>
 
       <div className="bg-white/95 backdrop-blur-2xl p-8 lg:p-14 rounded-[4rem] shadow-[0_0_100px_rgba(0,0,0,0.5)] w-full max-w-md border border-white/20 text-center relative z-10 animate-slide-up border-b-[12px] border-b-blue-600">
@@ -67,8 +67,8 @@ const Login: React.FC<Props> = ({ onLogin }) => {
            <img src={APP_CONFIG.LOGO_URL} alt="Logo" className="w-full h-full object-contain" />
         </div>
         
-        <h1 className="text-3xl lg:text-4xl font-black text-slate-900 mb-2 tracking-tighter">كنترول الاختبارات</h1>
-        <p className="text-slate-400 font-bold mb-10 italic">النظام السحابي المطور للمراقبة</p>
+        <h1 className="text-3xl lg:text-4xl font-black text-slate-900 mb-2 tracking-tighter uppercase">كنترول الاختبارات</h1>
+        <p className="text-slate-400 font-bold mb-10 italic">النظام الموحد للمراقبة والتوثيق</p>
         
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2 text-right">
@@ -89,7 +89,7 @@ const Login: React.FC<Props> = ({ onLogin }) => {
             type="submit" 
             disabled={isLoading}
             className={`
-              w-full bg-slate-900 text-white font-black py-6 rounded-[2rem] shadow-2xl shadow-slate-900/30 
+              w-full bg-slate-950 text-white font-black py-6 rounded-[2.5rem] shadow-2xl shadow-slate-900/30 
               transition-all flex items-center justify-center gap-3 text-xl
               ${isLoading ? 'opacity-70 scale-95' : 'hover:bg-blue-600 active:scale-95'}
             `}
@@ -101,27 +101,44 @@ const Login: React.FC<Props> = ({ onLogin }) => {
             )}
           </button>
         </form>
-        
+
+        {/* Improved Install Prompt UI */}
         {deferredPrompt && (
-          <button 
-            onClick={handleInstallClick}
-            className="mt-6 w-full bg-emerald-50 text-emerald-600 font-black py-4 rounded-[1.5rem] border-2 border-emerald-100 flex items-center justify-center gap-3 text-sm hover:bg-emerald-100 transition-all shadow-sm"
-          >
-            <Download size={18} /> تثبيت البرنامج على الجهاز
-          </button>
+          <div className="mt-8 animate-bounce-subtle">
+            <button 
+              onClick={handleInstallClick}
+              className="group relative w-full bg-gradient-to-br from-emerald-500 to-emerald-600 p-6 rounded-[2.5rem] shadow-xl shadow-emerald-500/20 overflow-hidden transition-all hover:scale-[1.02] active:scale-95 border-b-4 border-emerald-700"
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 blur-2xl rounded-full -mr-12 -mt-12"></div>
+              <div className="relative z-10 flex items-center gap-6">
+                 <div className="bg-white/20 p-4 rounded-2xl text-white animate-pulse">
+                    <Smartphone size={32} />
+                 </div>
+                 <div className="text-right flex-1 text-white">
+                    <h4 className="font-black text-lg leading-tight">تثبيت البرنامج</h4>
+                    <p className="text-emerald-100 text-[10px] font-bold mt-1 uppercase">حول الموقع إلى تطبيق الآن</p>
+                 </div>
+                 <div className="bg-white text-emerald-600 p-2 rounded-full shadow-lg group-hover:rotate-12 transition-transform">
+                    <Download size={20} />
+                 </div>
+              </div>
+            </button>
+          </div>
         )}
         
-        <div className="mt-8 space-y-3">
+        <div className="mt-10 space-y-3">
           <div className="flex items-center justify-center gap-4">
              <div className="h-[1px] w-8 bg-slate-100"></div>
-             <p className="text-[10px] text-slate-300 font-black tracking-[0.3em] uppercase">Security Level 5</p>
+             <p className="text-[10px] text-slate-300 font-black tracking-[0.3em] uppercase">V 5.5.0 STABLE</p>
              <div className="h-[1px] w-8 bg-slate-100"></div>
           </div>
-          <p className="text-[9px] text-slate-400 font-bold bg-slate-50 py-2 px-4 rounded-full inline-block">
-            إصدار 5.2.0 • الحفظ التلقائي مفعل
-          </p>
         </div>
       </div>
+
+      <style>{`
+        @keyframes bounce-subtle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        .animate-bounce-subtle { animation: bounce-subtle 3s ease-in-out infinite; }
+      `}</style>
     </div>
   );
 };
