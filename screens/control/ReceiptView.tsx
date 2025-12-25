@@ -49,9 +49,14 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
     return `${cleanId(committee)}_${cleanGrade(grade)}`;
   };
 
-  // اللجان التي قام المراقب بإغلاقها وبانتظار الكنترول (PENDING)
-  const pendingCommittees = useMemo(() => {
-    return new Set(deliveryLogs.filter(l => l.status === 'PENDING').map(l => cleanId(l.committee_number)));
+  // اللجان التي قام المراقب بإرسال بياناتها (سواء كانت PENDING أو تم تأكيد جزء منها)
+  // نعتمد على وجود proctor_name كدليل على أن السجل مصدره المراقب
+  const proctorSubmittedCommittees = useMemo(() => {
+    return new Set(
+      deliveryLogs
+        .filter(l => l.type === 'RECEIVE' && (l.status === 'PENDING' || l.proctor_name))
+        .map(l => cleanId(l.committee_number))
+    );
   }, [deliveryLogs]);
 
   const allLogs = useMemo(() => {
@@ -116,7 +121,6 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
 
     let targetCommitteeNum = input;
     
-    // إذا كان المدخل هو رقم هوية معلم، نجد رقم لجنته
     const teacher = users.find(u => cleanId(u.national_id) === input);
     if (teacher) {
       const sv = supervisions.find(s => s.teacher_id === teacher.id);
@@ -124,8 +128,8 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
       else { onAlert("هذا المعلم ليس لديه لجنة مسندة حالياً"); return; }
     }
 
-    // القيد الأمني: التحقق هل أغلق المراقب اللجنة؟
-    if (!pendingCommittees.has(targetCommitteeNum)) {
+    // التحقق المطور: هل توجد أي إشارة من المراقب لهذه اللجنة؟
+    if (!proctorSubmittedCommittees.has(targetCommitteeNum)) {
       onAlert({ 
         message: `تنبيه: المراقب لم يغلق اللجنة رقم ${targetCommitteeNum} بعد. يرجى إبلاغه بإنهاء الرصد الرقمي من جهازه أولاً.`,
         type: 'error' 
@@ -161,11 +165,9 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
     const sv = supervisions.find(s => cleanId(s.committee_number) === item.committee);
     const proctor = users.find(u => u.id === sv?.teacher_id);
     
-    // نجد السجل الذي حالته PENDING لنقوم بتحديثه (أو نضيف سجل CONFIRMED مقابلاً له)
-    const existingPendingLog = deliveryLogs.find(l => cleanId(l.committee_number) === item.committee && l.status === 'PENDING' && l.grade.includes(item.grade));
-
+    // نستخدم ID جديد لكل عملية استلام لضمان عدم تداخل سجلات الكنترول مع سجل المراقب أو الزملاء
     const newLog: DeliveryLog = { 
-      id: existingPendingLog?.id || crypto.randomUUID(), 
+      id: crypto.randomUUID(), 
       teacher_name: user.full_name, 
       proctor_name: proctor?.full_name || 'غير معروف', 
       committee_number: item.committee, 
@@ -361,7 +363,8 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
             </div>
           ) : stats.remainingKeys.map(key => {
             const info = myTotalScope[key];
-            const isClosedByProctor = pendingCommittees.has(info.committee);
+            // اللجنة تعتبر مغلقة إذا أرسل المراقب أي سجل استلام لها
+            const isClosedByProctor = proctorSubmittedCommittees.has(info.committee);
             const sv = supervisions.find(s => cleanId(s.committee_number) === info.committee);
             const proctor = users.find(u => u.id === sv?.teacher_id);
             const committeeKey = info.key;

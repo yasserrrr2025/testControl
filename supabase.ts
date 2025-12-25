@@ -10,9 +10,14 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 const handleError = (error: any, context: string) => {
   if (error) {
     console.error(`Supabase Error [${context}]:`, error);
-    // استخراج رسالة الخطأ بشكل أفضل لتجنب [object Object]
-    const errorMsg = error.message || error.details || (typeof error === 'object' ? JSON.stringify(error) : String(error));
-    throw new Error(`${context}: ${errorMsg}`);
+    // تحويل الخطأ إلى نص واضح بدلاً من [object Object]
+    let message = 'خطأ غير معروف';
+    if (typeof error === 'string') message = error;
+    else if (error.message) message = error.message;
+    else if (error.details) message = error.details;
+    else message = JSON.stringify(error);
+
+    throw new Error(`${context}: ${message}`);
   }
 };
 
