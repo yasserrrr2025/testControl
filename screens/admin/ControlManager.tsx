@@ -58,15 +58,17 @@ const ControlManager: React.FC<ControlManagerProps> = ({
     return comNums.map(num => {
       const sv = supervisions.find(s => s.committee_number === num);
       const user = users.find(u => u.id === sv?.teacher_id);
-      return { num, proctor: user, svId: sv?.id };
+      
+      // الحصول على الصفوف الموجودة في هذه اللجنة من بيانات الطلاب
+      const gradesInCommittee = Array.from(new Set(students.filter(s => s.committee_number === num).map(s => s.grade)));
+      
+      return { num, proctor: user, svId: sv?.id, grades: gradesInCommittee };
     });
   }, [students, supervisions, users]);
 
-  // استخراج الصفوف واللجان المتاحة للإسناد
   const availableGrades = useMemo(() => Array.from(new Set(students.map(s => s.grade))).filter(Boolean).sort(), [students]);
   const availableCommittees = useMemo(() => Array.from(new Set(students.map(s => s.committee_number))).filter(Boolean).sort((a,b) => Number(a)-Number(b)), [students]);
 
-  // تصفية المستخدمين لتبويب الإسناد
   const assignmentUsers = useMemo(() => {
     return users.filter(u => 
       (u.role === 'CONTROL' || u.role === 'ASSISTANT_CONTROL') &&
@@ -77,21 +79,14 @@ const ControlManager: React.FC<ControlManagerProps> = ({
   const toggleGrade = async (user: User, grade: string) => {
     const current = user.assigned_grades || [];
     const updated = current.includes(grade) ? current.filter(g => g !== grade) : [...current, grade];
-    
-    // تحديث في القاعدة من خلال App callback
     onUpdateUserGrades(user.id, updated);
   };
 
   const toggleCommittee = async (user: User, committee: string) => {
     const current = user.assigned_committees || [];
     const updated = current.includes(committee) ? current.filter(c => c !== committee) : [...current, committee];
-    
-    // تحديث مباشر للجان (Assigned Committees)
     const { error } = await supabase.from('users').update({ assigned_committees: updated }).eq('id', user.id);
     if (error) alert(error.message);
-    else {
-      // إشعار بالنجاح أو مزامنة محلية إذا لزم الأمر
-    }
   };
 
   const handleStartNewDay = async () => {
@@ -106,12 +101,32 @@ const ControlManager: React.FC<ControlManagerProps> = ({
     } catch (err: any) { alert(err.message); } finally { setIsResetting(false); }
   };
 
-  // Fix: Added missing toggleManualJoin function
   const toggleManualJoin = async () => {
     try {
       await setSystemConfig({ ...systemConfig, allow_manual_join: !systemConfig.allow_manual_join });
     } catch (err: any) {
       alert(err.message);
+    }
+  };
+
+  const handleEmergencyReceipt = async (committeeNum: string, grade: string) => {
+    if (!confirm(`هل أنت متأكد من استلام مظروف (${grade}) للجنة (${committeeNum}) يدوياً؟ سيتم توثيق العملية باسمك.`)) return;
+    
+    try {
+      await setDeliveryLogs({
+        id: crypto.randomUUID(),
+        teacher_name: 'رئيس الكنترول (تجاوز يدوي)',
+        proctor_name: 'تجاوز طوارئ - يدوي',
+        committee_number: committeeNum,
+        grade: grade,
+        type: 'RECEIVE',
+        time: new Date().toISOString(),
+        period: 1,
+        status: 'CONFIRMED'
+      });
+      alert('تم الاستلام والتوثيق بنجاح.');
+    } catch (err: any) {
+      alert('فشل في توثيق الاستلام: ' + err.message);
     }
   };
 
@@ -369,7 +384,6 @@ const ControlManager: React.FC<ControlManagerProps> = ({
                  <h3 className="text-xl font-black flex items-center gap-3 text-amber-500 relative z-10"><History size={24} /> سجل البث (24 ساعة)</h3>
                  
                  <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 relative z-10 space-y-4">
-                    {/* محاكاة للسجلات أو استعراض من notifications إذا كانت متوفرة */}
                     <div className="p-5 bg-white/5 border border-white/10 rounded-2xl space-y-3">
                        <div className="flex justify-between items-center text-[10px] font-black uppercase text-amber-500/60">
                           <span>إلى: الجميع</span>
@@ -396,57 +410,62 @@ const ControlManager: React.FC<ControlManagerProps> = ({
                  <div className="space-y-4">
                     <div className="flex items-center gap-6">
                        <div className="bg-white/10 p-5 rounded-3xl backdrop-blur-md"><ShieldAlert size={48}/></div>
-                       <h3 className="text-4xl font-black tracking-tighter">بوابة استلام الطوارئ (Manual Bypass)</h3>
+                       <h3 className="text-4xl font-black tracking-tighter">بوابة استلام الطوارئ (Smart Bypass)</h3>
                     </div>
-                    <p className="text-red-100 font-bold text-lg max-w-xl">يستخدم هذا الخيار في حال تعطل جهاز المراقب أو تعذر الإغلاق الرقمي. الاستلام هنا يتم يدوياً ويتطلب موافقة رئيس الكنترول.</p>
-                 </div>
-                 <div className="bg-white/10 p-8 rounded-[3rem] border border-white/20 text-center min-w-[180px]">
-                    <p className="text-[10px] font-black uppercase opacity-60 mb-1 tracking-widest">إجمالي تجاوزات اليوم</p>
-                    <p className="text-6xl font-black tabular-nums">0</p>
+                    <p className="text-red-100 font-bold text-lg max-w-xl">يستخدم هذا الخيار في حال تعذر الإغلاق الرقمي من المراقب. النظام يستخرج الصفوف من بيانات الطلاب تلقائياً لتجنب الأخطاء.</p>
                  </div>
               </div>
            </div>
 
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {proctorStatus.filter(c => !c.proctor).map(com => (
-                <div key={com.num} className="bg-white p-8 rounded-[3.5rem] border-2 border-red-50 shadow-xl flex flex-col gap-6 group hover:border-red-600 transition-all">
+              {proctorStatus.map(com => (
+                <div key={com.num} className="bg-white p-8 rounded-[3.5rem] border-2 border-slate-50 shadow-xl flex flex-col gap-6 group hover:border-red-600 transition-all">
                    <div className="flex justify-between items-center">
                       <div className="bg-slate-900 text-white w-16 h-16 rounded-2xl flex flex-col items-center justify-center font-black">
                          <span className="text-[8px] opacity-40 leading-none mb-1">لجنة</span>
                          <span className="text-3xl leading-none">{com.num}</span>
                       </div>
-                      <div className="bg-red-50 text-red-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase">شاغرة رقمياً</div>
+                      <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase ${com.proctor ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-600'}`}>
+                        {com.proctor ? 'قيد المراقبة' : 'شاغرة رقمياً'}
+                      </div>
                    </div>
-                   <button 
-                      onClick={() => {
-                        const grade = prompt('أدخل الصف الدراسي للاستلام اليدوي:');
-                        if (grade) {
-                           setDeliveryLogs({
-                              id: crypto.randomUUID(),
-                              teacher_name: 'رئيس الكنترول (تجاوز يدوي)',
-                              proctor_name: 'تجاوز طوارئ',
-                              committee_number: com.num,
-                              grade,
-                              type: 'RECEIVE',
-                              time: new Date().toISOString(),
-                              period: 1,
-                              status: 'CONFIRMED'
-                           });
-                           alert(`تم استلام لجنة ${com.num} بنجاح.`);
-                        }
-                      }}
-                      className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-sm flex items-center justify-center gap-3 hover:bg-red-600 transition-all"
-                   >
-                      <Unlock size={20} /> استلام يدوي اضطراري
-                   </button>
+
+                   <div className="space-y-3">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-1">الصفوف المسجلة في هذه اللجنة:</p>
+                      <div className="flex flex-col gap-2">
+                        {com.grades.length === 0 ? (
+                          <div className="text-xs text-slate-300 italic py-2">لا يوجد طلاب في هذه اللجنة</div>
+                        ) : (
+                          com.grades.map(grade => {
+                            const isAlreadyConfirmed = deliveryLogs.some(l => 
+                              l.committee_number === com.num && 
+                              l.grade === grade && 
+                              l.status === 'CONFIRMED'
+                            );
+                            
+                            return (
+                              <div key={grade} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100 group-hover:bg-white transition-colors">
+                                <span className="font-black text-sm text-slate-700">{grade}</span>
+                                {isAlreadyConfirmed ? (
+                                  <span className="flex items-center gap-1 text-emerald-600 font-black text-[9px] uppercase">
+                                    <CheckCircle2 size={12}/> تم الاستلام
+                                  </span>
+                                ) : (
+                                  <button 
+                                    onClick={() => handleEmergencyReceipt(com.num, grade)}
+                                    className="bg-slate-900 text-white px-4 py-2 rounded-xl font-black text-[10px] flex items-center gap-2 hover:bg-red-600 transition-all active:scale-95"
+                                  >
+                                    <Unlock size={12} /> استلام طوارئ
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                   </div>
                 </div>
               ))}
-              {proctorStatus.filter(c => !c.proctor).length === 0 && (
-                 <div className="col-span-full py-32 text-center bg-white rounded-[4rem] border-2 border-dashed border-slate-100 flex flex-col items-center gap-6">
-                    <CheckCircle2 size={64} className="text-emerald-500 opacity-20" />
-                    <p className="text-slate-300 font-black text-xl italic">لا توجد لجان شاغرة تتطلب استلام طوارئ حالياً.</p>
-                 </div>
-              )}
            </div>
         </div>
       )}

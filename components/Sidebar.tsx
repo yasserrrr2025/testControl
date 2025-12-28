@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, GraduationCap, ClipboardList, LogOut,
   ShieldAlert, Inbox, FileText, Settings, X, ChevronRight, ChevronLeft,
   History, IdCard, UserCircle, ShieldCheck, ShieldHalf, Bell, Shield,
-  Monitor, Fingerprint
+  Monitor, Fingerprint, MonitorPlay
 } from 'lucide-react';
 import { UserRole, User, ControlRequest } from '../types';
 import { APP_CONFIG, ROLES_ARABIC } from '../constants';
@@ -40,6 +40,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const adminLinks: SidebarLink[] = [
     { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
+    { id: 'control-monitor', label: 'لوحة العرض (TV)', icon: MonitorPlay },
     { id: 'control-manager', label: 'مركز قيادة الكنترول', icon: ShieldHalf },
     { id: 'teachers', label: 'الصلاحيات', icon: Users },
     { id: 'students', label: 'الطلاب', icon: GraduationCap },
