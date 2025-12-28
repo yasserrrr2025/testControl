@@ -20,38 +20,36 @@ const AdminSystemSettings: React.FC<Props> = ({ systemConfig, setSystemConfig, r
   const [isSavingCfg, setIsSavingCfg] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
-  const sqlManualJoinFix = `-- إصلاح وتحديث قاعدة البيانات بالكامل (نسخة الميدان)
--- تحديث جدول إعدادات النظام
-CREATE TABLE IF NOT EXISTS system_config (
+  const sqlManualJoinFix = `-- إصلاح وتحديث قاعدة البيانات بالكامل (نسخة الميدان المحدثة)
+-- 1. جدول إعدادات النظام (استخدام TEXT للتواريخ لضمان توافق JS)
+DROP TABLE IF EXISTS system_config;
+CREATE TABLE system_config (
   id TEXT PRIMARY KEY DEFAULT 'main_config',
-  exam_start_time TEXT,
+  exam_start_time TEXT DEFAULT '08:00',
   exam_date TEXT,
-  active_exam_date TEXT,
+  active_exam_date TEXT DEFAULT CURRENT_DATE::text,
   allow_manual_join BOOLEAN DEFAULT false
 );
 
--- تحديث جدول المستخدمين (الهيئة التعليمية)
+INSERT INTO system_config (id, active_exam_date) VALUES ('main_config', CURRENT_DATE::text);
+
+-- 2. تحديث جدول المستخدمين
 ALTER TABLE users ADD COLUMN IF NOT EXISTS assigned_committees TEXT[] DEFAULT '{}';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS assigned_grades TEXT[] DEFAULT '{}';
 
--- تحديث جدول الطلاب
+-- 3. تحديث جدول الطلاب
 ALTER TABLE students ADD COLUMN IF NOT EXISTS seating_number TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS committee_number TEXT;
 
--- تحديث جدول سجلات الاستلام (Delivery Logs)
+-- 4. تحديث جدول التكليفات ليكون التاريخ نصياً للمطابقة السهلة
+ALTER TABLE supervision ALTER COLUMN date TYPE TEXT;
+
+-- 5. تحديث جدول سجلات الاستلام
 ALTER TABLE delivery_logs ADD COLUMN IF NOT EXISTS proctor_name TEXT;
 ALTER TABLE delivery_logs ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'PENDING';
 
--- تحديث جدول البلاغات (Requests)
-ALTER TABLE control_requests ADD COLUMN IF NOT EXISTS assistant_name TEXT;
-
--- تعديل قيد التحقق من الأدوار (Roles)
-ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('ADMIN', 'CONTROL_MANAGER', 'PROCTOR', 'CONTROL', 'ASSISTANT_CONTROL', 'COUNSELOR'));
-
--- تفعيل Row Level Security (RLS) - اختياري
--- ALTER TABLE students ENABLE ROW LEVEL SECURITY;
--- CREATE POLICY "Allow all" ON students FOR ALL USING (true);`;
+-- 6. تحديث جدول البلاغات
+ALTER TABLE control_requests ADD COLUMN IF NOT EXISTS assistant_name TEXT;`;
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -96,7 +94,7 @@ ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('ADMIN', 'CONT
               {copied === 'sql' ? 'تم النسخ' : 'نسخ الكود'}
             </button>
           </div>
-          <p className="text-sm text-slate-400 leading-relaxed">انسخ الكود التالي ونفذه في SQL Editor داخل Supabase لإضافة الأعمدة المفقودة وتصحيح الصلاحيات نهائياً وتفادي أخطاء Fetch.</p>
+          <p className="text-sm text-slate-400 leading-relaxed">انسخ الكود التالي ونفذه في SQL Editor داخل Supabase لإصلاح تعارض أنواع البيانات (Date vs Text) وضمان ثبات اللجان.</p>
           <div className="relative group">
             <pre className="bg-black/50 p-8 rounded-3xl font-mono text-[11px] text-blue-300 border border-white/10 overflow-x-auto text-left dir-ltr custom-scrollbar h-64">
               {sqlManualJoinFix}
@@ -116,7 +114,7 @@ ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('ADMIN', 'CONT
                    <input type="time" value={tempStartTime} onChange={(e) => setTempStartTime(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-100 rounded-[1.8rem] p-6 font-black text-2xl text-center outline-none focus:border-blue-600 shadow-inner" />
                 </div>
                 <div className="space-y-3">
-                   <label className="text-[10px] font-black text-slate-400 mr-2 uppercase flex items-center gap-2 tracking-widest"><Calendar size={12}/> تاريخ اليوم (يُحدث تلقائياً)</label>
+                   <label className="text-[10px] font-black text-slate-400 mr-2 uppercase flex items-center gap-2 tracking-widest"><Calendar size={12}/> تاريخ اليوم النشط</label>
                    <input type="date" value={tempActiveDate} onChange={(e) => setTempActiveDate(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-100 rounded-[1.8rem] p-6 font-black text-2xl text-center outline-none focus:border-blue-600 shadow-inner" />
                 </div>
              </div>

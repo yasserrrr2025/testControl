@@ -50,14 +50,16 @@ const App: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      // التاريخ الفعلي لليوم لضمان الفلترة الديناميكية
-      const todayDate = new Date().toISOString().split('T')[0];
-      
+      // 1. جلب الإعدادات أولاً للحصول على التاريخ النشط المعتمد
       const cfg = await db.config.get();
+      let filterDate = systemConfig.active_exam_date;
+      
       if (cfg) {
         setSystemConfig(prev => ({ ...prev, ...cfg }));
+        filterDate = cfg.active_exam_date || filterDate;
       }
 
+      // 2. جلب باقي البيانات
       const [u, s, sv, ab, cr, dl] = await Promise.all([
         db.users.getAll(),
         db.students.getAll(),
@@ -69,17 +71,20 @@ const App: React.FC = () => {
 
       setUsers(u);
       setStudents(s);
-      // فلترة البيانات لتكون مرتبطة باليوم الحالي فقط لمنع التداخل
-      setSupervisions(sv.filter(i => i.date.startsWith(todayDate))); 
-      setAbsences(ab.filter(i => i.date.startsWith(todayDate))); 
-      setDeliveryLogs(dl.filter(i => i.time.startsWith(todayDate)));
-      setControlRequests(cr.filter(i => i.time.startsWith(todayDate)));
+      
+      // 3. الفلترة بناءً على التاريخ النشط في إعدادات النظام لضمان Persistence
+      if (filterDate) {
+        setSupervisions(sv.filter(i => i.date && i.date.startsWith(filterDate))); 
+        setAbsences(ab.filter(i => i.date && i.date.startsWith(filterDate))); 
+        setDeliveryLogs(dl.filter(i => i.time && i.time.startsWith(filterDate)));
+        setControlRequests(cr.filter(i => i.time && i.time.startsWith(filterDate)));
+      }
 
       if (currentUser) {
         const { data: notes } = await supabase.from('notifications')
           .select('*')
           .or(`target_role.eq.ALL,target_role.eq.${currentUser.role}`)
-          .gte('created_at', todayDate)
+          .gte('created_at', filterDate)
           .order('created_at', { ascending: false })
           .limit(1);
 
@@ -108,7 +113,7 @@ const App: React.FC = () => {
       } catch (e) { localStorage.removeItem('currentUser'); }
     }
     fetchData();
-    const interval = setInterval(fetchData, 10000); // تحديث أسرع للوحة المراقبة
+    const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
@@ -122,7 +127,6 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     if (!currentUser) return null;
-    const today = new Date().toISOString().split('T')[0];
     
     switch (activeTab) {
       case 'dashboard': return <AdminDashboardOverview stats={{ students: students.length, users: users.length, activeSupervisions: supervisions.length }} absences={absences} supervisions={supervisions} users={users} deliveryLogs={deliveryLogs} studentsList={students} onBroadcast={(m, t) => db.notifications.broadcast(m, t, currentUser.full_name)} systemConfig={systemConfig} />;
@@ -139,9 +143,9 @@ const App: React.FC = () => {
       case 'students': return <AdminStudentsManager students={students} setStudents={async (s) => { await db.students.upsert(typeof s === 'function' ? s(students) : s); await fetchData(); }} onDeleteStudent={async (id) => { if(confirm('حذف؟')) { await db.students.delete(id); await fetchData(); } }} {...commonProps} />;
       case 'committees': return <AdminSupervisionMonitor supervisions={supervisions} users={users} students={students} absences={absences} deliveryLogs={deliveryLogs} />;
       case 'official-forms': return <AdminOfficialForms absences={absences} students={students} supervisions={supervisions} users={users} />;
-      case 'settings': return <AdminSystemSettings systemConfig={systemConfig} setSystemConfig={async (cfg) => { await db.config.upsert(cfg); await fetchData(); }} resetFunctions={{ students: async () => { if(confirm('حذف الطلاب؟')) { await supabase.from('students').delete().neq('id', '0'); await fetchData(); } }, teachers: async () => { if(confirm('حذف المعلمين؟')) { await supabase.from('users').delete().neq('role', 'ADMIN'); await fetchData(); } }, operations: async () => { if(confirm('تصفير سجلات اليوم؟')) { await supabase.from('absences').delete().gte('date', today); await supabase.from('delivery_logs').delete().gte('time', today); await fetchData(); } }, fullReset: () => {} }} />;
+      case 'settings': return <AdminSystemSettings systemConfig={systemConfig} setSystemConfig={async (cfg) => { await db.config.upsert(cfg); await fetchData(); }} resetFunctions={{ students: async () => { if(confirm('حذف الطلاب؟')) { await supabase.from('students').delete().neq('id', '0'); await fetchData(); } }, teachers: async () => { if(confirm('حذف المعلمين؟')) { await supabase.from('users').delete().neq('role', 'ADMIN'); await fetchData(); } }, operations: async () => { if(confirm('تصفير سجلات اليوم؟')) { await supabase.from('absences').delete().gte('date', systemConfig.active_exam_date); await supabase.from('delivery_logs').delete().gte('time', systemConfig.active_exam_date); await fetchData(); } }, fullReset: () => {} }} />;
       case 'assigned-requests': return <AssistantControlView user={currentUser} requests={controlRequests} setRequests={fetchData} absences={absences} students={students} {...commonProps} />;
-      case 'paper-logs': return <ControlReceiptView user={currentUser} students={students} absences={absences} deliveryLogs={deliveryLogs} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} supervisions={supervisions} users={users} controlRequests={controlRequests} setControlRequests={fetchData} {...commonProps} />;
+      case 'paper-logs': return <ControlReceiptView user={currentUser} students={students} absences={absences} deliveryLogs={deliveryLogs} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} supervisions={supervisions} users={users} controlRequests={controlRequests} setControlRequests={fetchData} systemConfig={systemConfig} {...commonProps} />;
       case 'receipt-history': return <ReceiptLogsView deliveryLogs={deliveryLogs} users={users} />;
       case 'digital-id': return <TeacherBadgeView user={currentUser} />;
       case 'student-absences': return <CounselorAbsenceMonitor absences={absences} students={students} supervisions={supervisions} users={users} />;

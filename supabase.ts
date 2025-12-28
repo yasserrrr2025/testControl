@@ -10,15 +10,9 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 const handleError = (error: any, context: string) => {
   if (error) {
     console.error(`Supabase Error [${context}]:`, error);
-    // تحويل الخطأ إلى نص واضح بدلاً من [object Object]
-    let message = 'خطأ غير معروف';
-    if (typeof error === 'string') message = error;
-    else if (error.message) message = error.message;
-    else if (error.details) message = error.details;
-    else message = JSON.stringify(error);
-
-    throw new Error(`${context}: ${message}`);
+    return error.message || 'خطأ في الاتصال';
   }
+  return null;
 };
 
 export const db = {
@@ -29,8 +23,8 @@ export const db = {
       return (data || []) as User[];
     },
     getById: async (nationalId: string) => {
-      const { data, error } = await supabase.from('users').select('*').eq('national_id', nationalId).single();
-      if (error && error.code !== 'PGRST116') handleError(error, "users.getById");
+      const { data, error } = await supabase.from('users').select('*').eq('national_id', nationalId).maybeSingle();
+      if (error) handleError(error, "users.getById");
       return data as User;
     },
     upsert: async (users: any[]) => {
@@ -137,9 +131,13 @@ export const db = {
 
   config: {
     get: async () => {
-      const { data, error } = await supabase.from('system_config').select('*').single();
-      if (error && error.code !== 'PGRST116') handleError(error, "config.get");
-      return data as SystemConfig;
+      try {
+        const { data, error } = await supabase.from('system_config').select('*').maybeSingle();
+        if (error) throw error;
+        return data as SystemConfig;
+      } catch (e) {
+        return null;
+      }
     },
     upsert: async (config: Partial<SystemConfig>) => {
       const { error } = await supabase.from('system_config').upsert([{ ...config, id: 'main_config' }], { onConflict: 'id' });
