@@ -7,7 +7,7 @@ import {
   CheckCircle2, Check, ChevronLeft, Loader2, Save, 
   Trophy, Zap, History, UserCircle, UserX, AlertCircle,
   X, Lock, Unlock, Camera, ShieldCheck, UserCheck,
-  ClipboardCheck, MapPin, Search, GraduationCap
+  ClipboardCheck, MapPin, Search, GraduationCap, ArrowRight
 } from 'lucide-react';
 import { db } from '../../supabase';
 
@@ -45,7 +45,7 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
     return `${cleanId(committee)}_${grade.trim()}`;
   };
 
-  // اللجان التي أغلقها المراقب ميدانياً اليوم
+  // اللجان التي أغلقها المراقب ميدانياً اليوم وتنتظر الاستلام الفعلي
   const proctorSubmittedCommittees = useMemo(() => {
     return new Set(
       deliveryLogs
@@ -94,32 +94,38 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
       .sort((a, b) => a.grade.localeCompare(b.grade));
   }, [activeCommitteeId, myTotalScope, receivedKeys]);
 
+  // دالة المعالجة الذكية (تقبل رقم لجنة أو رقم هوية مراقب)
   const handleStartProcess = (val: string) => {
     const input = cleanId(val);
     if (!input) return;
 
     let targetCommitteeNum = input;
     
-    // البحث إذا كان المدخل هو رقم هوية المراقب
+    // 1. التحقق أولاً: هل المدخل هو رقم هوية مراقب مسجل؟
     const proctorUser = users.find(u => cleanId(u.national_id) === input);
+    
     if (proctorUser) {
+      // إذا كانت هوية مراقب، نبحث عن تكليفه النشط اليوم
       const sv = supervisions.find(s => s.teacher_id === proctorUser.id && s.date.startsWith(todayDate));
       if (sv) {
         targetCommitteeNum = cleanId(sv.committee_number);
+        onAlert(`تم التعرف على المراقب: ${proctorUser.full_name} - لجنة ${targetCommitteeNum}`);
       } else {
-        onAlert(`تنبيه: المراقب ${proctorUser.full_name} ليس لديه لجنة نشطة اليوم.`);
+        onAlert(`تنبيه: المراقب ${proctorUser.full_name} ليس لديه تكليف مسجل اليوم.`);
         return;
       }
     }
 
+    // 2. التحقق من أن اللجنة (سواء أدخلت مباشرة أو عبر هوية المراقب) قد تم إنهاؤها ميدانياً
     if (!proctorSubmittedCommittees.has(targetCommitteeNum)) {
-      onAlert(`عذراً: المراقب لم ينهِ رصد ومطابقة اللجنة ${targetCommitteeNum} بعد.`);
+      onAlert(`عذراً: اللجنة ${targetCommitteeNum} لم يتم إنهاؤها ميدانياً من قبل المراقب بعد.`);
       return;
     }
 
+    // 3. التحقق من التبعية والصلاحيات
     const waiting = Object.keys(myTotalScope).filter(k => myTotalScope[k].committee === targetCommitteeNum && !receivedKeys.has(k));
     if (waiting.length === 0) {
-      onAlert(`اللجنة ${targetCommitteeNum} مستلمة بالكامل أو غير تابعة لصلاحياتك.`);
+      onAlert(`اللجنة ${targetCommitteeNum} مستلمة بالكامل أو خارج نطاق صلاحياتك الحالية.`);
       return;
     }
 
@@ -146,14 +152,13 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
     const item = currentQueue[currentQueueIndex];
     if (!item) return;
 
-    // استخراج اسم المراقب الميداني الفعلي للجنة
     const sv = supervisions.find(s => cleanId(s.committee_number) === item.committee && s.date.startsWith(todayDate));
     const proctorObj = users.find(u => u.id === sv?.teacher_id);
     
     const newLog: DeliveryLog = { 
       id: crypto.randomUUID(), 
       teacher_name: user.full_name, 
-      proctor_name: proctorObj?.full_name || 'تجاوز نظامي', 
+      proctor_name: proctorObj?.full_name || 'استلام مباشر', 
       committee_number: item.committee, 
       grade: item.grade, 
       type: 'RECEIVE', 
@@ -186,18 +191,18 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
       
       <div className="flex flex-col md:flex-row justify-between items-end gap-6 border-b pb-8">
         <div className="space-y-2">
-          <div className="bg-blue-600 text-white px-4 py-1 rounded-lg text-[10px] font-black w-fit shadow-lg uppercase tracking-widest">بوابة الاستلام والتوثيق المركزية</div>
-          <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter uppercase">توثيق استلام المظاريف</h2>
-          <p className="text-slate-400 font-bold italic flex items-center gap-2 tracking-tight">تاريخ اليوم المعتمد: {todayDate}</p>
+          <div className="bg-blue-600 text-white px-4 py-1 rounded-lg text-[10px] font-black w-fit shadow-lg uppercase tracking-widest">مركز التوثيق والاستلام المركزي</div>
+          <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter uppercase leading-none">مطابقة واستلام المظاريف</h2>
+          <p className="text-slate-400 font-bold italic flex items-center gap-2 tracking-tight mt-2">التاريخ النشط حالياً: {todayDate}</p>
         </div>
       </div>
 
       <div className="bg-slate-950 p-10 md:p-14 rounded-[4rem] shadow-2xl relative overflow-hidden group border-b-[10px] border-blue-600">
          <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 blur-[150px] rounded-full -mr-48 -mt-48 transition-all group-hover:bg-blue-600/20"></div>
-         <div className="relative z-10 space-y-10">
-            <div className="text-center space-y-2">
-               <h3 className="text-3xl font-black text-white">مطابقة هوية المراقب الميداني</h3>
-               <p className="text-slate-500 font-bold text-sm uppercase tracking-[0.3em]">Central Verification Gateway</p>
+         <div className="relative z-10 space-y-10 text-center">
+            <div className="space-y-2">
+               <h3 className="text-3xl font-black text-white">تحقق من الهوية الميدانية</h3>
+               <p className="text-slate-500 font-bold text-sm uppercase tracking-[0.3em]">Scan Committee QR or Proctor ID</p>
             </div>
 
             <div className="flex flex-col lg:flex-row gap-6 items-stretch max-w-4xl mx-auto">
@@ -206,7 +211,7 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
                    setIsScanning(true);
                    setTimeout(async () => {
                      try {
-                       const scanner = new Html5Qrcode("receipt-qr-v12");
+                       const scanner = new Html5Qrcode("receipt-qr-v15");
                        qrScannerRef.current = scanner;
                        await scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: 250 }, (text) => { 
                          handleStartProcess(text); 
@@ -214,23 +219,27 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
                      } catch (err) { setIsScanning(false); }
                    }, 300);
                  }} 
-                 className="flex-[2] bg-blue-600 text-white p-10 rounded-[3rem] font-black text-2xl flex flex-col items-center justify-center gap-4 shadow-2xl hover:bg-blue-700 transition-all active:scale-95 group/btn"
+                 className="flex-[2] bg-blue-600 text-white p-12 rounded-[3rem] font-black text-3xl flex flex-col items-center justify-center gap-6 shadow-2xl hover:bg-blue-700 transition-all active:scale-95 group/btn"
                >
-                  <Camera size={56} className="group-hover/btn:rotate-12 transition-transform" />
-                  <span>مسح هوية المراقب (ID)</span>
+                  <div className="flex items-center gap-4">
+                     <Camera size={64} className="group-hover/btn:rotate-12 transition-transform" />
+                     <LayoutGrid size={40} className="text-white/40" />
+                  </div>
+                  <span>بدء المسح الذكي للكود</span>
+                  <p className="text-[10px] opacity-60 font-bold tracking-widest leading-none">يدعم كود اللجنة وكود المراقب</p>
                </button>
 
-               <div className="flex-1 bg-white/5 border-2 border-white/10 rounded-[3rem] p-4 flex flex-col items-center justify-center gap-4">
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">أدخل رقم اللجنة يدوياً</p>
+               <div className="flex-1 bg-white/5 border-2 border-white/10 rounded-[3rem] p-6 flex flex-col items-center justify-center gap-4">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">أو أدخل رقم اللجنة / الهوية</p>
                   <div className="flex gap-2 w-full px-2">
                      <input 
                        type="text" 
                        value={searchInput} 
                        onChange={e => setSearchInput(e.target.value)} 
                        placeholder="00" 
-                       className="bg-transparent border-0 flex-1 px-4 font-black text-5xl text-center text-white outline-none placeholder:text-white/10" 
+                       className="bg-transparent border-0 flex-1 px-4 font-black text-4xl text-center text-white outline-none placeholder:text-white/10" 
                      />
-                     <button onClick={() => handleStartProcess(searchInput)} className="bg-white text-slate-950 p-6 rounded-[2rem] shadow-xl hover:bg-blue-400 transition-all active:scale-90"><Zap size={28}/></button>
+                     <button onClick={() => handleStartProcess(searchInput)} className="bg-white text-slate-950 p-6 rounded-[2rem] shadow-xl hover:bg-blue-400 transition-all active:scale-90"><ArrowRight size={28}/></button>
                   </div>
                </div>
             </div>
@@ -238,8 +247,8 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
 
          {isScanning && (
             <div className="fixed inset-0 z-[500] bg-slate-950/98 backdrop-blur-3xl flex flex-col items-center justify-center p-8 no-print text-white">
-              <div id="receipt-qr-v12" className="w-full max-w-sm aspect-square bg-black rounded-[4rem] border-8 border-white/10 overflow-hidden shadow-2xl"></div>
-              <button onClick={stopScanner} className="mt-12 bg-red-600 text-white px-24 py-6 rounded-[2rem] font-black text-2xl shadow-xl active:scale-95">إلغاء وإغلاق الكاميرا</button>
+              <div id="receipt-qr-v15" className="w-full max-w-sm aspect-square bg-black rounded-[4rem] border-8 border-white/10 overflow-hidden shadow-2xl"></div>
+              <button onClick={stopScanner} className="mt-12 bg-red-600 text-white px-24 py-6 rounded-[2rem] font-black text-2xl shadow-xl active:scale-95">إلغاء وإغلاق</button>
             </div>
          )}
       </div>
@@ -264,8 +273,8 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
                              <span className="text-4xl leading-none">{activeCommitteeId}</span>
                           </div>
                           <div>
-                             <h3 className="text-3xl font-black tracking-tight">محضر الاستلام الميداني</h3>
-                             <p className="text-blue-400 text-sm font-bold mt-1 uppercase tracking-widest">Official Final Receipt</p>
+                             <h3 className="text-3xl font-black tracking-tight">محضر مطابقة واستلام</h3>
+                             <p className="text-blue-400 text-sm font-bold mt-1 uppercase tracking-widest">Final Matching Protocol</p>
                           </div>
                        </div>
                        <button onClick={() => setActiveCommitteeId(null)} className="p-3 bg-white/5 hover:bg-white/10 rounded-full transition-all text-white/40 hover:text-white"><X size={32}/></button>
@@ -274,7 +283,7 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
                     <div className="p-10 space-y-10">
                        <div className="flex flex-col md:flex-row items-center gap-8 justify-between border-b border-slate-100 pb-8">
                           <div className="text-center md:text-right flex-1">
-                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 leading-none">الصف الدراسي المراد مطابقته</p>
+                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 leading-none">الصف المستهدف للمطابقة</p>
                              <h4 className="text-5xl font-black text-slate-900 tracking-tighter leading-tight break-words">{currentQueue[currentQueueIndex].grade}</h4>
                           </div>
                           <div className="bg-slate-50 p-6 rounded-[2.5rem] border-2 border-slate-100 flex flex-col items-center min-w-[150px] shadow-inner">
@@ -283,7 +292,6 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
                           </div>
                        </div>
 
-                       {/* إحصائيات الطلاب التفصيلية */}
                        <div className="grid grid-cols-3 gap-4">
                           <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-[2rem] text-center shadow-sm">
                              <p className="text-[10px] font-black text-emerald-800 uppercase mb-1 leading-none">الحضور</p>
@@ -305,16 +313,14 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
                           </div>
                        </div>
 
-                       {/* اسم المراقب الميداني الموثق */}
-                       <div className="bg-blue-50/50 p-8 rounded-[3rem] border border-blue-100 flex items-center gap-6 relative group transition-all hover:bg-blue-100">
-                          <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg border border-blue-100"><UserCircle size={36} className="text-blue-600" /></div>
-                          <div className="flex-1">
-                             <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1 leading-none italic">المراقب الميداني المسلم للمظروف</p>
+                       <div className="bg-blue-50/50 p-8 rounded-[3rem] border border-blue-100 flex items-center gap-6 group transition-all hover:bg-blue-100">
+                          <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg border border-blue-100"><UserCheck size={36} className="text-blue-600" /></div>
+                          <div className="flex-1 text-right">
+                             <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1 italic">المراقب الميداني الموثق</p>
                              <h5 className="text-2xl font-black text-slate-800 leading-tight">
-                                {users.find(u => u.id === supervisions.find(s => cleanId(s.committee_number) === activeCommitteeId && s.date.startsWith(todayDate))?.teacher_id)?.full_name || 'بانتظار التحاق المراقب باللجنة...'}
+                                {users.find(u => u.id === supervisions.find(s => cleanId(s.committee_number) === activeCommitteeId && s.date.startsWith(todayDate))?.teacher_id)?.full_name || '---'}
                              </h5>
                           </div>
-                          <ShieldCheck className="text-emerald-500 opacity-30" size={32}/>
                        </div>
 
                        <button 
@@ -322,7 +328,7 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
                          disabled={isSaving}
                          className="w-full py-8 bg-slate-950 text-white rounded-[2.5rem] font-black text-2xl flex items-center justify-center gap-6 shadow-2xl hover:bg-emerald-600 transition-all active:scale-95 shadow-emerald-500/20"
                        >
-                          <Save size={36}/> مطابقة وتوثيق استلام المظروف
+                          <Save size={36}/> مطابقة وتوثيق الاستلام النهائي
                        </button>
                     </div>
                   </div>
@@ -335,7 +341,7 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
          {stats.remainingKeys.length === 0 ? (
            <div className="col-span-full py-24 bg-emerald-50 rounded-[4rem] border-2 border-dashed border-emerald-200 text-center flex flex-col items-center gap-6">
               <Trophy size={80} className="text-emerald-500 animate-bounce" />
-              <h3 className="text-3xl font-black text-emerald-800">تم استلام جميع مظاريف لجان اليوم بنجاح!</h3>
+              <h3 className="text-3xl font-black text-emerald-800">اكتمل استلام جميع مظاريف اليوم بنجاح</h3>
            </div>
          ) : (
            stats.remainingKeys.map(key => {
@@ -355,7 +361,7 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
                   <div className="flex justify-between items-start mb-6">
                      <div className="flex flex-col">
                         <span className={`text-6xl font-black leading-none tracking-tighter ${isReady ? 'text-slate-900' : 'text-slate-300'}`}>{info.committee}</span>
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">رقم اللجنة الميدانية</span>
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">لجنة ميدانية</span>
                      </div>
                      <div className={`px-4 py-1.5 rounded-xl text-[10px] font-black ${isReady ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-100 text-slate-400'}`}>
                         {info.grade}
@@ -366,8 +372,8 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
                      <div className="flex items-center gap-3 p-4 bg-white/50 rounded-2xl border border-slate-100 shadow-sm transition-all group-hover:bg-white">
                         <UserCircle size={20} className={isReady ? 'text-blue-500' : 'text-slate-300'} />
                         <div className="min-w-0 flex-1">
-                           <p className="text-[8px] font-black text-slate-400 uppercase leading-none mb-1">المراقب الميداني الحالي</p>
-                           <p className="text-sm font-black text-slate-700 truncate">{proctor?.full_name || 'بانتظار مباشرة المراقب...'}</p>
+                           <p className="text-[8px] font-black text-slate-400 uppercase leading-none mb-1">المراقب المسؤول</p>
+                           <p className="text-sm font-black text-slate-700 truncate">{proctor?.full_name || 'بانتظار المباشرة...'}</p>
                         </div>
                      </div>
                   </div>
@@ -376,7 +382,7 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
                     onClick={() => handleStartProcess(info.committee)}
                     className={`w-full py-5 rounded-[2rem] font-black text-lg transition-all flex items-center justify-center gap-3 active:scale-95 shadow-xl ${isReady ? 'bg-slate-900 text-white hover:bg-black' : 'bg-slate-50 text-slate-300 cursor-not-allowed border border-slate-100'}`}
                   >
-                     {isReady ? <>فتح التوثيق والمطابقة <ChevronLeft size={24} /></> : <><Lock size={20} /> قيد المباشرة الميدانية</>}
+                     {isReady ? <>بدء المطابقة الفورية <ArrowRight size={24} className="rotate-180" /></> : <><Lock size={20} /> قيد الرصد الميداني</>}
                   </button>
                </div>
              );
