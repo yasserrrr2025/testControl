@@ -4,7 +4,8 @@ import {
   LayoutDashboard, Users, GraduationCap, ClipboardList, LogOut,
   ShieldAlert, Inbox, FileText, Settings, X, ChevronRight, ChevronLeft,
   History, IdCard, UserCircle, ShieldCheck, ShieldHalf, Bell, Shield,
-  Monitor, Fingerprint, MonitorPlay, Award, LayoutPanelTop, QrCode
+  Monitor, Fingerprint, MonitorPlay, Award, LayoutPanelTop, QrCode,
+  FileSpreadsheet
 } from 'lucide-react';
 import { UserRole, User, ControlRequest } from '../types';
 import { APP_CONFIG, ROLES_ARABIC } from '../constants';
@@ -48,6 +49,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     { id: 'teachers', label: 'الصلاحيات', icon: Users },
     { id: 'students', label: 'الطلاب', icon: GraduationCap },
     { id: 'committees', label: 'المراقبة', icon: ClipboardList },
+    { id: 'daily-reports', label: 'التقارير اليومية', icon: FileSpreadsheet },
     { id: 'official-forms', label: 'النماذج', icon: FileText },
     { id: 'settings', label: 'إعدادات النظام', icon: Settings },
   ];
