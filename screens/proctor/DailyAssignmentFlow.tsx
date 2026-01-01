@@ -8,7 +8,8 @@ import {
   X, Send, RefreshCcw, BellRing, ShieldAlert, AlertOctagon,
   PackageCheck, PackageSearch, Camera, Shield, Zap, FileWarning, 
   Plus, Minus, Check, Info, Ambulance, Pen, NotebookPen, 
-  UserSearch, MessageCircleWarning, ArrowRight, MessageCircle, Backpack, History, Clock, ClipboardCheck
+  UserSearch, MessageCircleWarning, ArrowRight, MessageCircle, Backpack, History, Clock, ClipboardCheck,
+  Trophy, Medal, Star, Heart
 } from 'lucide-react';
 import { db } from '../../supabase';
 import { APP_CONFIG, ROLES_ARABIC } from '../../constants';
@@ -52,42 +53,30 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
   const qrScannerRef = useRef<Html5Qrcode | null>(null);
   const activeDate = useMemo(() => systemConfig?.active_exam_date || new Date().toISOString().split('T')[0], [systemConfig]);
 
+  // اللجنة النشطة في التكليفات
   const activeAssignment = useMemo(() => 
     supervisions.find((s: any) => s.teacher_id === user.id && s.date && s.date.startsWith(activeDate)), 
   [supervisions, user.id, activeDate]);
 
   const activeCommittee = activeAssignment?.committee_number || null;
 
+  // فحص هل المراقب قام بأي عملية إغلاق (سواء معلقة PENDING أو مكتملة CONFIRMED) لهذه اللجنة اليوم
+  const myClosureLogs = useMemo(() => {
+    if (!activeCommittee) return [];
+    return deliveryLogs.filter(l => 
+      l.committee_number === activeCommittee && 
+      l.proctor_name === user.full_name &&
+      l.time.startsWith(activeDate)
+    );
+  }, [deliveryLogs, activeCommittee, user.full_name, activeDate]);
+
+  const isClosedLocally = myClosureLogs.length > 0;
+  const isFullyDelivered = isClosedLocally && myClosureLogs.every(l => l.status === 'CONFIRMED');
+
   useEffect(() => {
     const timer = setTimeout(() => setIsInitialLoading(false), 800);
     return () => clearTimeout(timer);
   }, [supervisions]);
-
-  // فحص سجلات الاستلام المؤكدة لهذه اللجنة اليوم
-  const confirmedLogs = useMemo(() => {
-    if (!activeCommittee) return [];
-    return deliveryLogs.filter(l => 
-      l.committee_number === activeCommittee && 
-      l.status === 'CONFIRMED' && 
-      l.time.startsWith(activeDate)
-    );
-  }, [deliveryLogs, activeCommittee, activeDate]);
-
-  // هل تم تسليم جميع الصفوف في هذه اللجنة؟
-  const isFullyDelivered = useMemo(() => {
-    if (!activeCommittee) return false;
-    const committeeGrades = Array.from(new Set(students.filter(s => s.committee_number === activeCommittee).map(s => s.grade)));
-    return committeeGrades.length > 0 && committeeGrades.every(g => confirmedLogs.some(l => l.grade === g));
-  }, [confirmedLogs, students, activeCommittee]);
-
-  // الأرشيف (اللجان التي سلمها المراقب سابقاً)
-  const archivedLogs = useMemo(() => {
-    return deliveryLogs.filter(l => 
-      l.proctor_name === user.full_name && 
-      l.status === 'CONFIRMED' &&
-      l.committee_number !== activeCommittee
-    ).sort((a,b) => b.time.localeCompare(a.time));
-  }, [deliveryLogs, user.full_name, activeCommittee]);
 
   const myStudents = useMemo(() => students.filter(s => s.committee_number === activeCommittee), [students, activeCommittee]);
   const myGrades = useMemo(() => Array.from(new Set(myStudents.map(s => s.grade))).sort(), [myStudents]);
@@ -96,7 +85,8 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
   const stats = useMemo(() => {
     const total = myStudents.length;
     const abs = myAbsences.filter(a => a.type === 'ABSENT').length;
-    return { total, present: total - abs, absent: abs };
+    const lates = myAbsences.filter(a => a.type === 'LATE').length;
+    return { total, present: total - abs, absent: abs, lates };
   }, [myStudents, myAbsences]);
 
   const joinCommittee = async (committeeNum: string) => {
@@ -107,8 +97,8 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
       await db.supervision.deleteByTeacherId(user.id);
       await db.supervision.insert({ id: crypto.randomUUID(), teacher_id: user.id, committee_number: cleanedNum, date: new Date().toISOString(), period: 1, subject: 'اختبار' });
       await setSupervisions();
-      onAlert(`تمت المباشرة في اللجنة ${cleanedNum}`);
-    } catch (err: any) { onAlert(err.message); } finally { setIsJoining(false); }
+      onAlert(`تمت المباشرة في اللجنة ${cleanedNum}`, 'success');
+    } catch (err: any) { onAlert(err.message, 'error'); } finally { setIsJoining(false); }
   };
 
   const stopScanner = async () => {
@@ -121,6 +111,7 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
   };
 
   const toggleStudentStatus = async (student: Student, type: 'ABSENT' | 'LATE') => {
+    if (isClosedLocally) return; // منع التعديل بعد الإغلاق
     const existing = absences.find(a => a.student_id === student.national_id && a.date.startsWith(activeDate));
     try {
       if (existing && existing.type === type) {
@@ -129,7 +120,7 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
         await db.absences.upsert({ id: crypto.randomUUID(), student_id: student.national_id, student_name: student.name, committee_number: activeCommittee!, period: 1, type, proctor_id: user.id, date: new Date().toISOString() });
       }
       await setAbsences();
-    } catch (err: any) { onAlert(err); }
+    } catch (err: any) { onAlert(err, 'error'); }
   };
 
   const finalizeClosing = async () => {
@@ -139,102 +130,133 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
         await setDeliveryLogs({ id: crypto.randomUUID(), teacher_name: 'بانتظار الكنترول', proctor_name: user.full_name, committee_number: activeCommittee!, grade, type: 'RECEIVE', time: new Date().toISOString(), period: 1, status: 'PENDING' });
       }
       await sendRequest(`المراقب ${user.full_name} أنهى رصد اللجنة وجاهز للتسليم.`, activeCommittee!);
-      setClosingStep(2); // الانتقال لشاشة الباركود
-    } catch (err: any) { onAlert(err.message); } finally { setIsVerifying(false); }
+      setIsClosingWizardOpen(false);
+      onAlert('تم إغلاق اللجنة وقفل الرصد الميداني', 'success');
+    } catch (err: any) { onAlert(err.message, 'error'); } finally { setIsVerifying(false); }
   };
 
   if (isInitialLoading) {
     return <div className="min-h-[60vh] flex flex-col items-center justify-center gap-6 animate-pulse text-slate-400"><Loader2 size={64} className="animate-spin text-blue-600" /><p className="font-black text-xl italic">جاري مزامنة البيانات...</p></div>;
   }
 
-  // شاشة الأرشيف
-  if (showHistory) {
-    return (
-      <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-32">
-         <div className="flex items-center justify-between">
-            <h2 className="text-3xl font-black text-slate-900 flex items-center gap-4"><History className="text-blue-600"/> أرشيف اللجان المسلمة</h2>
-            <button onClick={() => setShowHistory(false)} className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-black text-sm active:scale-95 transition-all">العودة للمهام</button>
-         </div>
-         {archivedLogs.length === 0 ? (
-           <div className="py-32 text-center text-slate-300 italic font-black border-4 border-dashed rounded-[3rem] text-xl bg-white">لا يوجد سجلات مؤرشفة حالياً</div>
-         ) : (
-           <div className="grid grid-cols-1 gap-4">
-              {archivedLogs.map(log => (
-                <div key={log.id} className="bg-white p-8 rounded-[2.5rem] shadow-xl border-2 border-slate-50 flex items-center justify-between group hover:border-blue-200 transition-all">
-                   <div className="flex items-center gap-6">
-                      <div className="bg-slate-900 text-white w-16 h-16 rounded-2xl flex flex-col items-center justify-center font-black">
-                         <span className="text-[8px] opacity-40 leading-none">لجنة</span>
-                         <span className="text-2xl leading-none">{log.committee_number}</span>
-                      </div>
-                      <div className="text-right">
-                         <h4 className="font-black text-xl text-slate-900 leading-none mb-1">{log.grade}</h4>
-                         <p className="text-[10px] font-bold text-slate-400">مستلم الكنترول: {log.teacher_name}</p>
-                      </div>
-                   </div>
-                   <div className="text-left">
-                      <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest leading-none mb-1 flex items-center gap-2 justify-end"><CheckCircle2 size={12}/> تم التوثيق</p>
-                      <p className="text-[10px] font-mono text-slate-400">{new Date(log.time).toLocaleDateString('ar-SA')} - {new Date(log.time).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'})}</p>
-                   </div>
-                </div>
-              ))}
-           </div>
-         )}
-      </div>
-    );
-  }
-
-  // شاشة النجاح النهائية وتفاصيل المستلم
+  // شاشة النجاح النهائية: بعد استلام الكنترول (لوحة الشرف)
   if (isFullyDelivered) {
+    const receiverLog = myClosureLogs.find(l => l.status === 'CONFIRMED');
     return (
-      <div className="max-w-4xl mx-auto py-12 px-6 text-center space-y-10 animate-fade-in flex flex-col items-center justify-center min-h-[80vh]">
-          <div className="bg-emerald-500 w-32 h-32 rounded-[2.5rem] flex items-center justify-center mx-auto shadow-2xl border-8 border-white animate-bounce">
-              <ShieldCheck size={72} className="text-white" />
-          </div>
-          <div className="space-y-4">
-              <h2 className="text-5xl font-black text-slate-900 tracking-tighter">تم تسليم اللجنة بنجاح</h2>
-              <p className="text-xl font-bold text-slate-500 italic">تم توثيق محضر الاستلام في قاعدة البيانات المركزية</p>
+      <div className="max-w-4xl mx-auto py-12 px-6 text-center space-y-8 animate-fade-in flex flex-col items-center justify-center min-h-[85vh]">
+          <div className="relative">
+             <div className="absolute inset-0 bg-emerald-500/20 blur-3xl rounded-full animate-pulse"></div>
+             <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 w-32 h-32 rounded-[2.5rem] flex items-center justify-center mx-auto shadow-2xl border-8 border-white relative z-10">
+                <Trophy size={64} className="text-white" />
+             </div>
           </div>
 
-          <div className="bg-white w-full max-w-lg p-8 rounded-[3.5rem] shadow-2xl border-2 border-emerald-100 space-y-6 text-right">
-             <div className="flex justify-between items-center border-b border-emerald-50 pb-4">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">بيانات التوثيق</span>
-                <span className="bg-emerald-50 text-emerald-600 px-4 py-1 rounded-full text-[10px] font-black">مكتمل</span>
-             </div>
-             {confirmedLogs.map(l => (
-                <div key={l.id} className="space-y-4">
-                   <div className="flex items-center gap-4">
-                      <div className="bg-blue-600/10 p-3 rounded-xl text-blue-600"><Users size={24}/></div>
-                      <div>
-                         <p className="text-[10px] font-black text-slate-400 uppercase">مستلم الكنترول</p>
-                         <p className="text-xl font-black text-slate-900">{l.teacher_name}</p>
-                      </div>
+          <div className="space-y-4">
+              <h2 className="text-5xl font-black text-slate-900 tracking-tighter">شكراً لجهودكم المميزة</h2>
+              <p className="text-xl font-bold text-slate-500 italic max-w-lg mx-auto">أستاذ {user.full_name}، تم إنهاء أعمال اللجنة وتوثيقها بنجاح في سجلات المدرسة.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
+             {/* بطاقة الإحصاء */}
+             <div className="bg-white p-8 rounded-[3.5rem] shadow-2xl border-2 border-slate-50 space-y-6 text-right relative overflow-hidden">
+                <div className="flex items-center gap-3 mb-2 border-b pb-4 border-slate-100">
+                   <ClipboardCheck className="text-blue-600" size={24}/>
+                   <span className="text-lg font-black text-slate-800">ملخص اللجنة {activeCommittee}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                   <div className="bg-emerald-50 p-4 rounded-3xl text-center">
+                      <p className="text-[10px] font-black text-emerald-600 uppercase mb-1">حضور</p>
+                      <p className="text-2xl font-black text-emerald-700">{stats.present}</p>
                    </div>
-                   <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                         <p className="text-[10px] font-black text-slate-400 mb-1">اللجنة والصف</p>
-                         <p className="font-black text-sm text-slate-800">لجنة {l.committee_number} | {l.grade}</p>
+                   <div className="bg-red-50 p-4 rounded-3xl text-center">
+                      <p className="text-[10px] font-black text-red-600 uppercase mb-1">غياب</p>
+                      <p className="text-2xl font-black text-red-700">{stats.absent}</p>
+                   </div>
+                   <div className="bg-amber-50 p-4 rounded-3xl text-center">
+                      <p className="text-[10px] font-black text-amber-600 uppercase mb-1">تأخر</p>
+                      <p className="text-2xl font-black text-amber-700">{stats.lates}</p>
+                   </div>
+                </div>
+             </div>
+
+             {/* بطاقة الاستلام */}
+             <div className="bg-slate-900 p-8 rounded-[3.5rem] shadow-2xl text-white space-y-6 text-right relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/10 blur-3xl"></div>
+                <div className="flex items-center gap-3 mb-2 border-b pb-4 border-white/10 relative z-10">
+                   <UserCheck className="text-emerald-400" size={24}/>
+                   <span className="text-lg font-black">تفاصيل الاستلام</span>
+                </div>
+                <div className="space-y-4 relative z-10">
+                   <div>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">مستلم الكنترول</p>
+                      <p className="text-xl font-black text-emerald-400">{receiverLog?.teacher_name}</p>
+                   </div>
+                   <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/10">
+                      <div>
+                         <p className="text-[9px] font-black text-slate-500 uppercase">الوقت</p>
+                         <p className="font-black text-sm tabular-nums">{new Date(receiverLog?.time || '').toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'})}</p>
                       </div>
-                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                         <p className="text-[10px] font-black text-slate-400 mb-1">وقت التوثيق</p>
-                         <p className="font-black text-sm text-slate-800 tabular-nums">{new Date(l.time).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'})}</p>
+                      <div className="text-left">
+                         <p className="text-[9px] font-black text-slate-500 uppercase">الحالة</p>
+                         <span className="text-emerald-400 font-black text-[10px] flex items-center gap-1"><CheckCircle2 size={12}/> موثق نظامياً</span>
                       </div>
                    </div>
                 </div>
-             ))}
+             </div>
           </div>
 
-          <div className="flex gap-4 w-full max-w-lg">
-             <button onClick={() => window.location.reload()} className="flex-1 bg-slate-950 text-white py-6 rounded-[2rem] font-black text-xl shadow-xl active:scale-95 transition-all">جلسة جديدة</button>
-             <button onClick={() => setShowHistory(true)} className="flex-1 bg-blue-600 text-white py-6 rounded-[2rem] font-black text-xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3"><History size={24}/> سجل العمليات</button>
+          <div className="pt-6">
+             <div className="flex items-center justify-center gap-4 text-slate-300">
+                <div className="h-[1px] w-12 bg-slate-200"></div>
+                <Heart size={20} className="text-red-300 fill-red-300" />
+                <div className="h-[1px] w-12 bg-slate-200"></div>
+             </div>
+             <p className="mt-4 text-sm font-black text-slate-400 italic">يتم تصفير الحالة تلقائياً عند بدء يوم اختبار جديد</p>
           </div>
       </div>
     );
   }
 
+  // شاشة "بانتظار الكنترول": الباركود ورسالة الشكر
+  if (isClosedLocally && !isFullyDelivered) {
+    return (
+      <div className="max-w-4xl mx-auto py-12 px-6 text-center space-y-12 animate-fade-in flex flex-col items-center justify-center min-h-[85vh]">
+          <div className="bg-blue-600/10 p-8 rounded-[4rem] border-2 border-blue-100 space-y-6 max-w-lg w-full relative overflow-hidden group">
+             <div className="absolute top-[-10%] left-[-10%] w-32 h-32 bg-blue-600/5 blur-2xl rounded-full"></div>
+             <div className="space-y-4 relative z-10">
+                <h2 className="text-4xl font-black text-slate-900 tracking-tighter">بانتظار عضو الكنترول</h2>
+                <p className="text-lg font-bold text-slate-500 italic">شكراً أستاذ {user.full_name}، يرجى عرض الباركود أدناه لإتمام عملية المطابقة والاستلام.</p>
+             </div>
+
+             <div className="bg-white p-8 rounded-[3rem] shadow-2xl border-4 border-slate-50 relative group-hover:scale-[1.02] transition-transform">
+                <img 
+                   src={`https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${activeCommittee}`} 
+                   alt="Committee QR" 
+                   className="w-64 h-64 mx-auto rounded-3xl"
+                />
+                <div className="mt-6 flex flex-col items-center gap-1">
+                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Scan for verification</span>
+                   <span className="bg-slate-950 text-white px-8 py-2 rounded-2xl font-black text-2xl tabular-nums shadow-xl">لجنة {activeCommittee}</span>
+                </div>
+             </div>
+          </div>
+
+          <div className="flex items-center gap-4 bg-amber-50 text-amber-700 px-8 py-4 rounded-full border border-amber-100 animate-pulse">
+             <Loader2 size={24} className="animate-spin" />
+             <span className="font-black text-sm">جاري مزامنة حالة الاستلام اللحظي...</span>
+          </div>
+
+          <button onClick={() => window.location.reload()} className="text-slate-400 hover:text-blue-600 transition-all font-black text-xs underline underline-offset-8 decoration-dotted uppercase tracking-widest">تحديث يدوي للحالة</button>
+      </div>
+    );
+  }
+
+  // شاشة البداية: اختيار اللجنة (تظهر فقط إذا لم يكن هناك لجنة نشطة)
   if (!activeCommittee) {
     return (
       <div className="max-w-4xl mx-auto py-10 px-4 space-y-12 animate-fade-in text-center">
          <div className="bg-slate-950 p-10 rounded-[4rem] text-white shadow-2xl relative overflow-hidden border-b-[10px] border-blue-600">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 blur-[150px] rounded-full -mr-48 -mt-48"></div>
             <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-10 text-right">
                <div className="flex items-center gap-8">
                   <div className="w-24 h-24 bg-white rounded-3xl p-1 shadow-2xl flex items-center justify-center border-4 border-blue-500/20">
@@ -257,14 +279,14 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
                   <h2 className="text-5xl md:text-7xl font-black tracking-tighter">بوابة المباشرة</h2>
                   <p className="text-slate-400 font-bold text-xl italic uppercase">امسح كود اللجنة لبدء الرصد</p>
                </div>
-               <button onClick={() => { setIsScanning(true); setTimeout(async () => { try { const scanner = new Html5Qrcode("proctor-qr-v3"); qrScannerRef.current = scanner; await scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: 250 }, (text) => { joinCommittee(text); stopScanner(); }, () => {}); } catch (err) { setIsScanning(false); } }, 200); }} className="w-full p-12 bg-blue-600 rounded-[3.5rem] font-black text-3xl text-white shadow-2xl hover:bg-blue-700 transition-all flex flex-col items-center gap-6 group">
+               <button onClick={() => { setIsScanning(true); setTimeout(async () => { try { const scanner = new Html5Qrcode("proctor-qr-v4"); qrScannerRef.current = scanner; await scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: 250 }, (text) => { joinCommittee(text); stopScanner(); }, () => {}); } catch (err) { setIsScanning(false); } }, 200); }} className="w-full p-12 bg-blue-600 rounded-[3.5rem] font-black text-3xl text-white shadow-2xl hover:bg-blue-700 transition-all flex flex-col items-center gap-6 group">
                   <Camera size={72} className="group-hover:rotate-12 transition-transform" />
                   <span>بدء مسح الكود</span>
                </button>
             </div>
             {isScanning && (
                <div className="fixed inset-0 z-[500] bg-slate-950/98 backdrop-blur-3xl flex flex-col items-center justify-center p-8 no-print text-white">
-                 <div id="proctor-qr-v3" className="w-full max-w-sm aspect-square bg-black rounded-[4rem] border-8 border-white/10 overflow-hidden shadow-2xl"></div>
+                 <div id="proctor-qr-v4" className="w-full max-w-sm aspect-square bg-black rounded-[4rem] border-8 border-white/10 overflow-hidden shadow-2xl"></div>
                  <button onClick={stopScanner} className="mt-12 bg-red-600 text-white px-24 py-6 rounded-[2rem] font-black text-2xl shadow-xl">إلغاء</button>
                </div>
             )}
@@ -273,10 +295,10 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
     );
   }
 
+  // شاشة اللجنة النشطة
   return (
     <div className="space-y-8 animate-fade-in max-w-7xl mx-auto text-right pb-48 px-4 md:px-0">
        
-       {/* هيدر معلومات اللجنة */}
        <div className="bg-slate-950 p-8 md:p-10 rounded-[3.5rem] text-white shadow-2xl relative overflow-hidden border-b-[8px] border-blue-600">
           <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
              <div className="flex items-center gap-6">
@@ -316,7 +338,7 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
           </button>
        </div>
 
-       {/* قائمة الطلاب الملونة */}
+       {/* قائمة الطلاب */}
        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-6">
          {myStudents.map((s: Student) => {
            const status = myAbsences.find(a => a.student_id === s.national_id);
@@ -339,7 +361,7 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
                 </div>
                 <div className="grid grid-cols-2 gap-3 mt-8">
                    <button onClick={() => toggleStudentStatus(s, 'ABSENT')} className={`py-5 rounded-[1.8rem] font-black text-xs transition-all ${status?.type === 'ABSENT' ? 'bg-red-600 text-white shadow-md' : 'bg-white/60 text-slate-400 hover:bg-red-50'}`}>رصد غياب</button>
-                   <button onClick={() => toggleStudentStatus(s, 'LATE')} className={`py-5 rounded-[1.8rem] font-black text-xs transition-all ${status?.type === 'LATE' ? 'bg-amber-500 text-white shadow-md' : 'bg-white/60 text-slate-400 hover:bg-amber-50'}`}>رصد تأخر</button>
+                   <button onClick={() => toggleStudentStatus(s, 'LATE')} className={`py-5 rounded-[1.8rem] font-black text-xs transition-all ${status?.type === 'LATE' ? 'bg-amber-500 text-white shadow-md' : 'bg-white/60 text-slate-400 hover:bg-red-50'}`}>رصد تأخر</button>
                 </div>
              </div>
            );
@@ -431,7 +453,7 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
                        <button onClick={() => setIsClosingWizardOpen(false)} className="bg-white/10 p-3 rounded-full relative z-10 hover:bg-white/20 transition-all"><X size={32}/></button>
                     </div>
                     <div className="p-10 space-y-8">
-                       <div className="max-h-[400px] overflow-y-auto space-y-4 custom-scrollbar px-2">
+                       <div className="max-h-[400px] overflow-y-auto space-y-4 custom-scrollbar px-2 text-right">
                           {myStudents.filter(s => myAbsences.some(a => a.student_id === s.national_id)).length === 0 ? (
                              <div className="p-16 text-center text-slate-300 italic font-black border-4 border-dashed rounded-[3rem] text-xl">لا توجد حالات غياب (اللجنة مكتملة)</div>
                           ) : (
@@ -443,7 +465,7 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
                                         <span className="font-black text-slate-800 text-xl block">{s.name}</span>
                                         <span className="text-[10px] text-slate-400 font-bold uppercase">{s.grade}</span>
                                      </div>
-                                     <button onClick={() => toggleStudentStatus(s, abs.type === 'ABSENT' ? 'LATE' : 'ABSENT')} className={`px-8 py-4 rounded-2xl font-black text-xs shadow-lg transition-all ${abs.type === 'ABSENT' ? 'bg-red-600 text-white' : 'bg-amber-500 text-white'}`}>
+                                     <button onClick={() => toggleStudentStatus(s, abs.type === 'ABSENT' ? 'LATE' : 'ABSENT')} className={`px-8 py-4 rounded-2xl font-black text-xs shadow-lg transition-all ${abs.type === 'ABSENT' ? 'bg-red-600 text-white' : 'bg-amber-50 text-white'}`}>
                                         {abs.type === 'ABSENT' ? 'غائب (تحويل لمتأخر)' : 'متأخر (تحويل لغائب)'}
                                      </button>
                                   </div>
@@ -471,7 +493,7 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
                         const gradeStudents = myStudents.filter(s => s.grade === grade);
                         const expected = gradeStudents.length - myAbsences.filter(a => a.type === 'ABSENT' && gradeStudents.some(s => s.national_id === a.student_id)).length;
                         if (count !== expected) {
-                          onAlert(`خطأ: العدد المدخل (${count}) لا يطابق عدد الحاضرين الفعلي (${expected}) لصف ${grade}.`);
+                          onAlert(`خطأ: العدد المدخل (${count}) لا يطابق عدد الحاضرين الفعلي (${expected}) لصف ${grade}.`, 'error');
                           return;
                         }
                         if (currentGradeIdx < myGrades.length - 1) setCurrentGradeIdx(prev => prev + 1);
@@ -479,32 +501,6 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
                     }} className="w-full bg-emerald-600 text-white py-9 rounded-[2.5rem] font-black text-3xl flex items-center justify-center gap-5 shadow-2xl active:scale-95">
                        {currentGradeIdx === myGrades.length - 1 ? 'إنهاء ومطابقة نهائية' : 'الصف التالي'} <ChevronLeft size={40} />
                     </button>
-                 </div>
-               ) : closingStep === 2 ? (
-                 <div className="animate-fade-in p-10 space-y-10 text-center">
-                    <div className="space-y-4">
-                       <h3 className="text-4xl font-black text-slate-950">بانتظار مسح الكود من الكنترول</h3>
-                       <p className="text-slate-400 font-bold">يرجى توجيه هذه الشاشة لعضو الكنترول لإتمام عملية الاستلام</p>
-                    </div>
-                    
-                    <div className="bg-slate-50 p-10 rounded-[4rem] border-4 border-dashed border-slate-200 relative group overflow-hidden inline-block mx-auto">
-                       <div className="absolute inset-0 bg-blue-600/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                       <img 
-                         src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${activeCommittee}`} 
-                         alt="Committee QR" 
-                         className="w-64 h-64 mx-auto shadow-2xl border-8 border-white rounded-[2rem] relative z-10"
-                       />
-                       <div className="mt-6 flex items-center justify-center gap-4 text-slate-900 font-black text-2xl relative z-10 tabular-nums">
-                          <span className="bg-slate-900 text-white px-6 py-2 rounded-2xl">لجنة {activeCommittee}</span>
-                       </div>
-                    </div>
-
-                    <div className="bg-blue-50 p-6 rounded-[2rem] border border-blue-100 flex items-center gap-4 text-right">
-                       <Info className="text-blue-600 shrink-0" size={28}/>
-                       <p className="text-xs font-bold text-blue-900 leading-relaxed">ستختفي هذه الشاشة تلقائياً بمجرد قيام الكنترول بمسح الكود وتوثيق الاستلام في النظام.</p>
-                    </div>
-
-                    <button onClick={() => setIsClosingWizardOpen(false)} className="w-full py-5 text-slate-400 font-black hover:text-slate-900 transition-colors">إغلاق المعاينه والعودة للمهام</button>
                  </div>
                ) : null}
             </div>
@@ -519,6 +515,7 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
   );
 
   async function handleQuickRequest(label: string) {
+     if (isClosedLocally) return;
      await sendRequest(label, activeCommittee!);
      onAlert('تم إرسال البلاغ للكنترول.');
      setIsRequestModalOpen(false);
