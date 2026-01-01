@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Supervision, User, Student, Absence, DeliveryLog } from '../../types';
 import OfficialHeader from '../../components/OfficialHeader';
-import { Printer, Calendar, BookOpen, CheckCircle2, Clock } from 'lucide-react';
+import { Printer, Calendar, BookOpen, CheckCircle2, Clock, FileText } from 'lucide-react';
 
 interface Props {
   supervisions: Supervision[];
@@ -76,7 +76,7 @@ const AdminSupervisionMonitor: React.FC<Props> = ({ supervisions, users, student
                  <label className="text-xs font-black text-slate-500 uppercase tracking-widest mr-3">المادة الدراسية</label>
                  <div className="relative">
                     <BookOpen className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                    <input type="text" placeholder="اكتب اسم المادة..." className="w-full pr-14 p-5 bg-white/10 border border-white/10 rounded-2xl font-black outline-none focus:border-blue-500 transition-all" value={reportInfo.subject} onChange={e => setReportInfo({...reportInfo, subject: e.target.value})} />
+                    <input type="text" placeholder="اكتب اسم المادة..." className="w-full pr-14 p-5 bg-white/10 border border-white/10 rounded-2xl font-black outline-none focus:border-blue-600 transition-all" value={reportInfo.subject} onChange={e => setReportInfo({...reportInfo, subject: e.target.value})} />
                  </div>
               </div>
            </div>
@@ -92,36 +92,33 @@ const AdminSupervisionMonitor: React.FC<Props> = ({ supervisions, users, student
             <h4 className="text-xl font-black text-slate-800">بيانات المسير التفصيلية - معاينة ذكية</h4>
          </div>
          <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-right border-collapse min-w-[1200px]">
+            <table className="w-full text-right border-collapse min-w-[1000px]">
                <thead className="bg-slate-50 border-b text-[10px] font-black text-slate-400 uppercase tracking-widest">
                  <tr>
-                   <th className="p-6 w-12">م</th>
+                   <th className="p-6">م</th>
                    <th className="p-6">اللجنة</th>
-                   <th className="p-6">المراقب</th>
-                   <th className="p-6">الصف</th>
-                   <th className="p-6 text-center">إحصاء (ح/غ/ت)</th>
-                   <th className="p-6 text-center">اسم المستلم (الكنترول)</th>
+                   <th className="p-6 text-right">المراقب</th>
+                   <th className="p-6 text-center">الصف</th>
+                   <th className="p-6 text-center">الإحصاء</th>
+                   <th className="p-6 text-center">المستلم</th>
                  </tr>
                </thead>
                <tbody className="divide-y divide-slate-100 font-bold text-slate-700">
                   {detailedStats.map((stat, idx) => (
                     <tr key={idx} className={`hover:bg-blue-50/30 transition-colors ${stat.isDone ? 'bg-emerald-50/10' : ''}`}>
                        <td className="p-6 text-slate-300 text-xs">{idx + 1}</td>
-                       <td className="p-6 font-black text-slate-900 text-lg">لجنة {stat.committee_number}</td>
-                       <td className="p-6 text-sm">{stat.proctor_name}</td>
-                       <td className="p-6"><span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-[10px] border border-blue-100">{stat.grade}</span></td>
-                       <td className="p-6 text-center tabular-nums space-x-2 space-x-reverse">
-                          <span className="text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md">{stat.present}</span>
-                          <span className="text-red-600 bg-red-50 px-2 py-1 rounded-md">{stat.absent}</span>
-                          <span className="text-amber-600 bg-amber-50 px-2 py-1 rounded-md">{stat.late}</span>
+                       <td className="p-6 font-black text-slate-900">لجنة {stat.committee_number}</td>
+                       <td className="p-6 text-right text-sm">{stat.proctor_name}</td>
+                       <td className="p-6 text-center"><span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-[10px] border border-blue-100">{stat.grade}</span></td>
+                       <td className="p-6 text-center tabular-nums space-x-2 space-x-reverse text-xs">
+                          <span className="text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md">ح:{stat.present}</span>
+                          <span className="text-red-600 bg-red-50 px-2 py-1 rounded-md">غ:{stat.absent}</span>
                        </td>
                        <td className="p-6 text-center">
                           {stat.isDone ? (
-                            <span className="text-emerald-600 text-xs flex items-center justify-center gap-2 font-black">
-                               <CheckCircle2 size={14}/> {stat.receiver}
-                            </span>
+                            <span className="text-emerald-600 text-[10px] font-black">{stat.receiver}</span>
                           ) : (
-                            <span className="text-slate-300 text-xs italic">بانتظار الاستلام النهائي</span>
+                            <span className="text-slate-300 text-[10px]">بانتظار الاستلام</span>
                           )}
                        </td>
                     </tr>
@@ -132,106 +129,121 @@ const AdminSupervisionMonitor: React.FC<Props> = ({ supervisions, users, student
       </div>
 
       {/* الهيكل الخاص بالطباعة - مصمم للتكرار التلقائي */}
-      <div className="print-only-container print-only">
+      <div className="print-only">
         <style>{`
           @media print {
-            @page { size: A4 portrait; margin: 5mm 5mm; }
+            @page { size: A4 portrait; margin: 0; }
             body { background: white !important; -webkit-print-color-adjust: exact; margin: 0; padding: 0; }
             .no-print { display: none !important; }
-            .print-only { display: block !important; width: 100%; }
             
-            /* السحر هنا: تكرار الهيدر في كل صفحة */
-            .official-table { width: 100%; border-collapse: collapse; }
-            .official-table thead { display: table-header-group; }
-            .official-table tfoot { display: table-footer-group; }
-            
-            .row-item { page-break-inside: avoid; }
-            .official-border { border: 1.2pt solid black !important; }
-            
-            /* تصغير الهيدر لتقليل الفراغ */
-            .official-cliche { transform: scale(0.95); transform-origin: top center; margin-bottom: 2mm !important; }
+            .print-table {
+              width: 100%;
+              border-collapse: collapse;
+              table-layout: fixed;
+            }
+            .print-table thead {
+              display: table-header-group;
+            }
+            .print-table tfoot {
+              display: table-footer-group;
+            }
+            .report-page-padding {
+              padding: 10mm 10mm;
+            }
+            .cell-border {
+              border: 1.2pt solid black !important;
+              padding: 4pt 2pt;
+              font-size: 8.5pt;
+              word-wrap: break-word;
+              overflow: hidden;
+            }
+            .cliche-header {
+              padding-bottom: 5mm;
+            }
           }
         `}</style>
 
-        <table className="official-table">
-          <thead>
-            <tr>
-              <th className="p-0 border-none">
-                <div className="official-cliche w-full">
-                  <OfficialHeader />
-                  <div className="text-center">
-                    <h2 className="text-[14pt] font-black border-b-[2pt] border-slate-900 pb-1 inline-block px-12 uppercase leading-none">مسير المراقبة ورصد حضور واستلام المظاريف</h2>
-                    <div className="flex justify-center gap-12 text-[10pt] font-black mt-3 text-slate-900">
-                      <span>اليوم/التاريخ: {new Intl.DateTimeFormat('ar-SA', {weekday:'long', day:'numeric', month:'long', year:'numeric'}).format(new Date(reportInfo.date))}</span>
-                      <span>المادة: <span className="border-b border-slate-900 px-6">{reportInfo.subject || '................'}</span></span>
+        <div className="report-page-padding">
+          <table className="print-table">
+            <thead>
+              <tr>
+                <th colSpan={10} className="p-0 font-normal text-right">
+                  <div className="cliche-header">
+                    <OfficialHeader />
+                    <div className="text-center mt-2">
+                      <h2 className="text-[14pt] font-black border-b-[2pt] border-black pb-1 inline-block px-10 uppercase leading-none">مسير المراقبة ورصد حضور واستلام المظاريف</h2>
+                      <div className="flex justify-center gap-10 text-[9.5pt] font-black mt-3 text-black">
+                        <span>اليوم/التاريخ: {new Intl.DateTimeFormat('ar-SA', {weekday:'long', day:'numeric', month:'long', year:'numeric'}).format(new Date(reportInfo.date))}</span>
+                        <span>المادة: <span className="border-b border-black px-6">{reportInfo.subject || '................'}</span></span>
+                      </div>
                     </div>
                   </div>
-                </div>
-                
-                {/* عناوين الأعمدة تكرر مع الهيدر */}
-                <div className="w-full mt-4">
-                   <table className="w-full border-collapse">
-                      <tr className="bg-slate-50 font-black text-[9pt]">
-                        <th className="border-[1.5pt] border-slate-950 p-2 w-[30pt] text-center">م</th>
-                        <th className="border-[1.5pt] border-slate-950 p-2 w-[45pt] text-center">اللجنة</th>
-                        <th className="border-[1.5pt] border-slate-950 p-2 text-right px-4">اسم المعلم (المراقب)</th>
-                        <th className="border-[1.5pt] border-slate-950 p-2 w-[80pt] text-center">الصف</th>
-                        <th className="border-[1.5pt] border-slate-950 p-2 w-[40pt] text-center">حاضر</th>
-                        <th className="border-[1.5pt] border-slate-950 p-2 w-[40pt] text-center">غائب</th>
-                        <th className="border-[1.5pt] border-slate-950 p-2 w-[40pt] text-center">متأخر</th>
-                        <th className="border-[1.5pt] border-slate-950 p-2 text-right px-4">المستلم (الكنترول)</th>
-                        <th className="border-[1.5pt] border-slate-950 p-2 w-[70pt] text-center">توقيع المستلم</th>
-                        <th className="border-[1.5pt] border-slate-950 p-2 w-[70pt] text-center">توقيع المراقب</th>
+                  
+                  {/* عناوين الأعمدة الصارمة داخل الـ thead */}
+                  <div className="w-full flex">
+                    <table className="w-full border-collapse table-layout-fixed">
+                      <tr className="bg-slate-50 font-black text-[8.5pt]">
+                        <th className="cell-border" style={{ width: '8mm' }}>م</th>
+                        <th className="cell-border" style={{ width: '12mm' }}>اللجنة</th>
+                        <th className="cell-border text-right px-2" style={{ width: '45mm' }}>اسم المعلم (المراقب)</th>
+                        <th className="cell-border" style={{ width: '25mm' }}>الصف</th>
+                        <th className="cell-border" style={{ width: '10mm' }}>حاضر</th>
+                        <th className="cell-border" style={{ width: '10mm' }}>غائب</th>
+                        <th className="cell-border" style={{ width: '10mm' }}>متأخر</th>
+                        <th className="cell-border text-right px-2" style={{ width: '30mm' }}>المستلم (الكنترول)</th>
+                        <th className="cell-border" style={{ width: '20mm' }}>توقيع المستلم</th>
+                        <th className="cell-border" style={{ width: '20mm' }}>توقيع المراقب</th>
                       </tr>
-                   </table>
-                </div>
-              </th>
-            </tr>
-          </thead>
-          
-          <tbody>
-            <tr>
-              <td className="p-0 border-none">
-                <table className="w-full border-collapse">
-                  {detailedStats.map((stat, i) => (
-                    <tr key={i} className="text-[9.5pt] row-item h-[34pt]">
-                      <td className="border-[1pt] border-slate-950 p-2 w-[30pt] text-center tabular-nums font-bold">{i + 1}</td>
-                      <td className="border-[1pt] border-slate-950 p-2 w-[45pt] font-black text-[11pt] text-center tabular-nums">{stat.committee_number}</td>
-                      <td className="border-[1pt] border-slate-950 p-2 text-right font-black px-3 leading-tight w-auto">{stat.proctor_name}</td>
-                      <td className="border-[1pt] border-slate-950 p-2 w-[80pt] text-center font-bold text-[8.5pt]">{stat.grade}</td>
-                      <td className="border-[1pt] border-slate-950 p-2 w-[40pt] font-black text-center tabular-nums">{stat.present}</td>
-                      <td className="border-[1pt] border-slate-950 p-2 w-[40pt] font-black text-center tabular-nums text-red-700">{stat.absent}</td>
-                      <td className="border-[1pt] border-slate-950 p-2 w-[40pt] font-black text-center tabular-nums">{stat.late}</td>
-                      <td className="border-[1pt] border-slate-950 p-2 text-right px-3 text-[8.5pt] font-bold">{stat.isDone ? stat.receiver : ''}</td>
-                      <td className="border-[1pt] border-slate-950 p-2 w-[70pt]"></td>
-                      <td className="border-[1pt] border-slate-950 p-2 w-[70pt]"></td>
-                    </tr>
-                  ))}
-                </table>
-              </td>
-            </tr>
-          </tbody>
+                    </table>
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            
+            <tbody>
+              <tr>
+                <td colSpan={10} className="p-0 border-none">
+                  <table className="w-full border-collapse table-layout-fixed">
+                    {detailedStats.map((stat, i) => (
+                      <tr key={i} className="h-[30pt]">
+                        <td className="cell-border text-center tabular-nums" style={{ width: '8mm' }}>{i + 1}</td>
+                        <td className="cell-border text-center font-black tabular-nums" style={{ width: '12mm' }}>{stat.committee_number}</td>
+                        <td className="cell-border text-right font-black px-2 leading-tight" style={{ width: '45mm' }}>{stat.proctor_name}</td>
+                        <td className="cell-border text-center font-bold" style={{ width: '25mm' }}>{stat.grade}</td>
+                        <td className="cell-border text-center font-black" style={{ width: '10mm' }}>{stat.present}</td>
+                        <td className="cell-border text-center font-black text-red-700" style={{ width: '10mm' }}>{stat.absent}</td>
+                        <td className="cell-border text-center font-black" style={{ width: '10mm' }}>{stat.late}</td>
+                        <td className="cell-border text-right px-2 font-bold" style={{ width: '30mm' }}>{stat.isDone ? stat.receiver : ''}</td>
+                        <td className="cell-border" style={{ width: '20mm' }}></td>
+                        <td className="cell-border" style={{ width: '20mm' }}></td>
+                      </tr>
+                    ))}
+                  </table>
+                </td>
+              </tr>
+            </tbody>
 
-          <tfoot>
-            <tr>
-              <td className="pt-8 border-none">
-                <div className="grid grid-cols-2 text-[11pt] font-black text-center gap-20 px-20">
-                   <div className="space-y-12">
-                      <p className="underline underline-offset-[6pt]">رئيس الكنترول</p>
-                      <p className="text-slate-400">....................................</p>
-                   </div>
-                   <div className="space-y-12">
-                      <p className="underline underline-offset-[6pt]">مدير المدرسة</p>
-                      <p className="text-slate-400">....................................</p>
-                   </div>
-                </div>
-                <div className="text-left mt-8 text-[7pt] text-slate-300 italic px-4">
-                   نظام كنترول الاختبارات المطور | استخراج: {new Date().toLocaleString('ar-SA')}
-                </div>
-              </td>
-            </tr>
-          </tfoot>
-        </table>
+            <tfoot>
+              <tr>
+                <td colSpan={10} className="pt-10 border-none">
+                  <div className="grid grid-cols-2 text-[11pt] font-black text-center gap-20 px-20">
+                     <div className="space-y-12">
+                        <p className="underline underline-offset-[6pt]">رئيس الكنترول</p>
+                        <p className="text-slate-400">....................................</p>
+                     </div>
+                     <div className="space-y-12">
+                        <p className="underline underline-offset-[6pt]">مدير المدرسة</p>
+                        <p className="text-slate-400">....................................</p>
+                     </div>
+                  </div>
+                  <div className="text-left mt-10 text-[7pt] text-slate-300 italic px-4">
+                     نظام كنترول الاختبارات المطور | استخراج: {new Date().toLocaleString('ar-SA')}
+                  </div>
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </div>
     </div>
   );
