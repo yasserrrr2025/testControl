@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 import { APP_CONFIG } from '../constants';
 import { db } from '../supabase';
-import { ShieldCheck, Globe, Zap, Lock, Download, Smartphone, LayoutGrid, CheckCircle2, X } from 'lucide-react';
+import { ShieldCheck, Download, Smartphone, Share, X, Info } from 'lucide-react';
 
 interface Props {
   users: User[];
@@ -15,8 +15,16 @@ const Login: React.FC<Props> = ({ onLogin, onAlert }) => {
   const [loginId, setLoginId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showIosHint, setShowIosHint] = useState(false);
 
   useEffect(() => {
+    // كشف iOS لتعليمات التثبيت اليدوي
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+    if (isIos && !isStandalone) {
+      setShowIosHint(true);
+    }
+
     const handler = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -29,9 +37,7 @@ const Login: React.FC<Props> = ({ onLogin, onAlert }) => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setDeferredPrompt(null);
-    }
+    if (outcome === 'accepted') setDeferredPrompt(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,10 +55,10 @@ const Login: React.FC<Props> = ({ onLogin, onAlert }) => {
         onAlert(`أهلاً بك، ${user.full_name}`, 'success');
         onLogin(user);
       } else {
-        onAlert('عذراً! رقم الهوية غير مسجل في النظام. يرجى مراجعة إدارة الكنترول.', 'error');
+        onAlert('عذراً! رقم الهوية غير مسجل في النظام.', 'error');
       }
-    } catch (err) {
-      onAlert('خطأ في الاتصال بقاعدة البيانات. تأكد من إعدادات Supabase.', 'error');
+    } catch (err: any) {
+      onAlert(`خطأ في الاتصال: ${err.message || 'تأكد من الإنترنت'}`, 'error');
     } finally {
       setIsLoading(false);
     }
@@ -60,89 +66,58 @@ const Login: React.FC<Props> = ({ onLogin, onAlert }) => {
 
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#020617] p-6 font-['Tajawal'] relative overflow-hidden">
-      {/* Background Elements */}
-      <div className="absolute inset-0 z-0">
-        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
-        <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-blue-600/20 rounded-full blur-[140px] animate-pulse"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-indigo-600/20 rounded-full blur-[140px] animate-pulse" style={{ animationDelay: '2s' }}></div>
+      <div className="absolute inset-0 z-0 opacity-10">
+        <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-blue-600 rounded-full blur-[140px] animate-pulse"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-indigo-600 rounded-full blur-[140px] animate-pulse"></div>
       </div>
 
-      <div className="bg-white/95 backdrop-blur-2xl p-8 lg:p-14 rounded-[4rem] shadow-[0_0_100px_rgba(0,0,0,0.5)] w-full max-w-md border border-white/20 text-center relative z-10 animate-slide-up border-b-[12px] border-b-blue-600">
-        <div className="bg-white w-28 h-28 rounded-3xl mx-auto flex items-center justify-center mb-8 shadow-2xl border-4 border-slate-50 overflow-hidden rotate-3 transition-transform hover:rotate-0">
+      <div className="bg-white/95 backdrop-blur-2xl p-8 lg:p-14 rounded-[4rem] shadow-2xl w-full max-w-md border border-white/20 text-center relative z-10 animate-slide-up border-b-[12px] border-b-blue-600">
+        <div className="bg-white w-24 h-24 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-2xl border-4 border-slate-50 overflow-hidden rotate-3">
            <img src={APP_CONFIG.LOGO_URL} alt="Logo" className="w-full h-full object-contain" />
         </div>
         
-        <h1 className="text-3xl lg:text-4xl font-black text-slate-900 mb-2 tracking-tighter uppercase">كنترول الاختبارات</h1>
-        <p className="text-slate-400 font-bold mb-10 italic">النظام الموحد للمراقبة والتوثيق</p>
+        <h1 className="text-3xl font-black text-slate-900 mb-2 tracking-tighter uppercase">كنترول الاختبارات</h1>
+        <p className="text-slate-400 font-bold mb-8 italic">النظام الذكي للمراقبة والتوثيق الميداني</p>
         
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-2 text-right">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-4">رقم الهوية الوطنية</label>
-            <div className="relative">
-              <input 
-                type="text" 
-                inputMode="numeric"
-                value={loginId} 
-                onChange={(e) => setLoginId(e.target.value)} 
-                placeholder="أدخل 10 أرقام" 
-                className="w-full p-5 lg:p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] text-center text-2xl font-black focus:border-blue-600 focus:bg-white outline-none transition-all shadow-inner placeholder:text-slate-200" 
-              />
-            </div>
-          </div>
+          <input 
+            type="text" 
+            inputMode="numeric"
+            value={loginId} 
+            onChange={(e) => setLoginId(e.target.value)} 
+            placeholder="أدخل رقم الهوية" 
+            className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] text-center text-2xl font-black focus:border-blue-600 outline-none transition-all shadow-inner" 
+          />
           
           <button 
             type="submit" 
             disabled={isLoading}
-            className={`
-              w-full bg-slate-950 text-white font-black py-6 rounded-[2.5rem] shadow-2xl shadow-slate-900/30 
-              transition-all flex items-center justify-center gap-3 text-xl
-              ${isLoading ? 'opacity-70 scale-95' : 'hover:bg-blue-600 active:scale-95'}
-            `}
+            className="w-full bg-slate-950 text-white font-black py-6 rounded-[2.5rem] shadow-2xl transition-all flex items-center justify-center gap-3 text-xl hover:bg-blue-600 active:scale-95"
           >
-            {isLoading ? (
-              <div className="w-6 h-6 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
-            ) : (
-              'دخول النظام'
-            )}
+            {isLoading ? <div className="w-6 h-6 border-4 border-white/20 border-t-white rounded-full animate-spin"></div> : 'دخول النظام'}
           </button>
         </form>
 
         {deferredPrompt && (
-          <div className="mt-8 animate-bounce-subtle">
-            <button 
-              onClick={handleInstallClick}
-              className="group relative w-full bg-gradient-to-br from-emerald-500 to-emerald-600 p-6 rounded-[2.5rem] shadow-xl shadow-emerald-500/20 overflow-hidden transition-all hover:scale-[1.02] active:scale-95 border-b-4 border-emerald-700"
-            >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 blur-2xl rounded-full -mr-12 -mt-12"></div>
-              <div className="relative z-10 flex items-center gap-6">
-                 <div className="bg-white/20 p-4 rounded-2xl text-white animate-pulse">
-                    <Smartphone size={32} />
-                 </div>
-                 <div className="text-right flex-1 text-white">
-                    <h4 className="font-black text-lg leading-tight">تثبيت البرنامج</h4>
-                    <p className="text-emerald-100 text-[10px] font-bold mt-1 uppercase">حول الموقع إلى تطبيق الآن</p>
-                 </div>
-                 <div className="bg-white text-emerald-600 p-2 rounded-full shadow-lg group-hover:rotate-12 transition-transform">
-                    <Download size={20} />
-                 </div>
-              </div>
-            </button>
+          <button onClick={handleInstallClick} className="mt-6 w-full bg-emerald-500 text-white p-5 rounded-[2rem] font-black text-sm flex items-center justify-center gap-3 shadow-lg animate-bounce">
+            <Download size={20} /> تثبيت التطبيق على الجوال
+          </button>
+        )}
+
+        {showIosHint && (
+          <div className="mt-8 p-6 bg-blue-50 rounded-[2.5rem] border border-blue-100 text-right">
+             <div className="flex items-center gap-3 text-blue-600 mb-2">
+                <Smartphone size={24} />
+                <h4 className="font-black text-sm">تثبيت على iPhone</h4>
+             </div>
+             <p className="text-[11px] font-bold text-slate-600 leading-relaxed">
+                لأفضل تجربة، انقر على أيقونة المشاركة <Share size={14} className="inline mx-1"/> في أسفل المتصفح ثم اختر <span className="text-blue-600 font-black underline">"إضافة إلى الشاشة الرئيسية"</span>.
+             </p>
           </div>
         )}
         
-        <div className="mt-10 space-y-3">
-          <div className="flex items-center justify-center gap-4">
-             <div className="h-[1px] w-8 bg-slate-100"></div>
-             <p className="text-[10px] text-slate-300 font-black tracking-[0.3em] uppercase">V 5.5.0 STABLE</p>
-             <div className="h-[1px] w-8 bg-slate-100"></div>
-          </div>
-        </div>
+        <p className="mt-10 text-[10px] text-slate-300 font-black tracking-[0.3em] uppercase">V 7.0 PRO SECURITY</p>
       </div>
-
-      <style>{`
-        @keyframes bounce-subtle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
-        .animate-bounce-subtle { animation: bounce-subtle 3s ease-in-out infinite; }
-      `}</style>
     </div>
   );
 };

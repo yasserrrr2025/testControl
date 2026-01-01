@@ -1,13 +1,14 @@
 
 {
-  "name": "كنترول الاختبارات",
+  "name": "كنترول الاختبارات المطور",
   "short_name": "الكنترول",
-  "description": "النظام الشامل لإدارة اللجان والمراقبة",
-  "start_url": "/",
+  "description": "نظام شامل لإدارة اللجان والمراقبة الميدانية والتوثيق الرقمي",
+  "id": "com.exam.control.v7",
+  "start_url": ".",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#0f172a",
-  "orientation": "portrait-primary",
+  "background_color": "#020617",
+  "theme_color": "#2563eb",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "https://www.raed.net/img?id=1488645",
@@ -18,7 +19,14 @@
     {
       "src": "https://www.raed.net/img?id=1488645",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "رصد الغياب",
+      "url": "/?tab=my-tasks"
     }
   ]
 }

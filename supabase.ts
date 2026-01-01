@@ -10,13 +10,13 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 const handleError = (error: any, context: string) => {
   if (error) {
     console.error(`Supabase Error [${context}]:`, error);
-    return error.message || 'خطأ في الاتصال';
+    // تحويل الكائن إلى نص مفهوم لتجنب ظهور [object Object]
+    return typeof error === 'string' ? error : (error.message || JSON.stringify(error));
   }
   return null;
 };
 
 export const db = {
-  // ... (بقية الكائنات السابقة تبقى كما هي)
   users: {
     getAll: async () => {
       const { data, error } = await supabase.from('users').select('*');
@@ -41,7 +41,10 @@ export const db = {
   students: {
     getAll: async () => {
       const { data, error } = await supabase.from('students').select('*');
-      handleError(error, "students.getAll");
+      if (error) {
+        const msg = handleError(error, "students.getAll");
+        throw new Error(msg);
+      }
       return (data || []) as Student[];
     },
     upsert: async (students: any[]) => {
@@ -153,7 +156,6 @@ export const db = {
     }
   },
 
-  // Fix: Added missing notifications property to the db object to support broadcasting messages.
   notifications: {
     broadcast: async (message: string, target: string, sender: string) => {
       const { error } = await supabase.from('notifications').insert([{
