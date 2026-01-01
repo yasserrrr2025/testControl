@@ -140,7 +140,7 @@ const AdminSupervisionMonitor: React.FC<Props> = ({ supervisions, users, student
           @media print {
             @page { 
               size: A4 portrait; 
-              margin: 5mm 10mm; /* تقليل الهوامش العلوية والسفلية لضمان المساحة */
+              margin: 3mm 3mm; /* تضييق الهوامش لأقصى حد */
             }
             body { 
               background: white !important; 
@@ -153,24 +153,29 @@ const AdminSupervisionMonitor: React.FC<Props> = ({ supervisions, users, student
             .print-table {
               width: 100%;
               border-collapse: collapse;
-              table-layout: fixed; /* ضروري لضبط عرض الأعمدة بدقة */
+              table-layout: fixed;
             }
             /* تكرار الهيدر في كل صفحة */
             .print-table thead {
               display: table-header-group;
             }
-            /* تكرار الفوتر في كل صفحة (اختياري حسب الحاجة، هنا نضعه في الأخير) */
             .print-table tfoot {
               display: table-footer-group;
             }
             .cell-border {
-              border: 1.2pt solid black !important;
-              padding: 5pt 3pt;
-              font-size: 9pt;
+              border: 1pt solid black !important;
+              padding: 3pt 2pt;
+              font-size: 7.5pt; /* تصغير الخط لمحتوى الجدول */
               word-wrap: break-word;
+              text-align: center;
             }
             .header-content {
-              padding-top: 0mm; /* إزالة أي فراغ علوي في الصفحة الأولى */
+              padding-top: 0mm;
+            }
+            .stat-cell {
+               font-size: 7.5pt;
+               font-weight: 900;
+               font-family: 'Tajawal', sans-serif;
             }
           }
         `}</style>
@@ -182,26 +187,25 @@ const AdminSupervisionMonitor: React.FC<Props> = ({ supervisions, users, student
                 <div className="header-content w-full">
                   <OfficialHeader />
                   <div className="text-center mt-2">
-                    <h2 className="text-[14pt] font-black border-b-[2pt] border-black pb-1 inline-block px-10 uppercase leading-none">مسير المراقبة ورصد حضور واستلام المظاريف</h2>
-                    <div className="flex justify-center gap-10 text-[10pt] font-black mt-3 text-black">
+                    <h2 className="text-[12pt] font-black border-b-[2pt] border-black pb-1 inline-block px-10 leading-none">مسير المراقبة ورصد حضور واستلام المظاريف</h2>
+                    <div className="flex justify-center gap-10 text-[9pt] font-black mt-2 text-black">
                       <span>اليوم/التاريخ: {new Intl.DateTimeFormat('ar-SA', {weekday:'long', day:'numeric', month:'long', year:'numeric'}).format(new Date(reportInfo.date))}</span>
                       <span>المادة: <span className="border-b border-black px-6">{reportInfo.subject || '................'}</span></span>
                     </div>
                   </div>
                 </div>
                 
-                {/* عناوين الأعمدة التي ستتكرر في كل صفحة */}
-                <div className="w-full mt-4 flex">
+                <div className="w-full mt-3 flex">
                   <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
-                    <tr className="bg-slate-50 font-black text-[9pt]">
+                    <tr className="bg-slate-50 font-black text-[7.5pt]">
                       <th className="cell-border" style={{ width: '8mm' }}>م</th>
-                      <th className="cell-border" style={{ width: '15mm' }}>اللجنة</th>
+                      <th className="cell-border" style={{ width: '13mm' }}>اللجنة</th>
                       <th className="cell-border text-right px-2" style={{ width: '45mm' }}>اسم المعلم (المراقب)</th>
-                      <th className="cell-border" style={{ width: '30mm' }}>الصف</th>
-                      <th className="cell-border" style={{ width: '12mm' }}>حاضر</th>
-                      <th className="cell-border" style={{ width: '12mm' }}>غائب</th>
-                      <th className="cell-border" style={{ width: '12mm' }}>متأخر</th>
-                      <th className="cell-border text-right px-2" style={{ width: '35mm' }}>المستلم (الكنترول)</th>
+                      <th className="cell-border" style={{ width: '28mm' }}>الصف</th>
+                      <th className="cell-border" style={{ width: '11mm' }}>حاضر</th>
+                      <th className="cell-border" style={{ width: '11mm' }}>غائب</th>
+                      <th className="cell-border" style={{ width: '11mm' }}>متأخر</th>
+                      <th className="cell-border text-right px-2" style={{ width: '33mm' }}>المستلم (الكنترول)</th>
                       <th className="cell-border" style={{ width: '22mm' }}>توقيع المستلم</th>
                       <th className="cell-border" style={{ width: '22mm' }}>توقيع المراقب</th>
                     </tr>
@@ -216,15 +220,15 @@ const AdminSupervisionMonitor: React.FC<Props> = ({ supervisions, users, student
               <td colSpan={10} className="p-0 border-none">
                 <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
                   {detailedStats.map((stat, i) => (
-                    <tr key={i} className="h-[32pt]">
-                      <td className="cell-border text-center tabular-nums font-bold" style={{ width: '8mm' }}>{i + 1}</td>
-                      <td className="cell-border text-center font-black tabular-nums" style={{ width: '15mm' }}>{stat.committee_number}</td>
+                    <tr key={i} className="h-[28pt]">
+                      <td className="cell-border tabular-nums" style={{ width: '8mm' }}>{i + 1}</td>
+                      <td className="cell-border font-black tabular-nums text-[9pt]" style={{ width: '13mm' }}>{stat.committee_number}</td>
                       <td className="cell-border text-right font-black px-2 leading-tight" style={{ width: '45mm' }}>{stat.proctor_name}</td>
-                      <td className="cell-border text-center font-bold text-[8pt]" style={{ width: '30mm' }}>{stat.grade}</td>
-                      <td className="cell-border text-center font-black tabular-nums" style={{ width: '12mm' }}>{stat.present}</td>
-                      <td className="cell-border text-center font-black tabular-nums text-red-700" style={{ width: '12mm' }}>{stat.absent}</td>
-                      <td className="cell-border text-center font-black tabular-nums" style={{ width: '12mm' }}>{stat.late}</td>
-                      <td className="cell-border text-right px-2 font-bold text-[8pt]" style={{ width: '35mm' }}>{stat.isDone ? stat.receiver : ''}</td>
+                      <td className="cell-border font-bold" style={{ width: '28mm' }}>{stat.grade}</td>
+                      <td className="cell-border stat-cell" style={{ width: '11mm' }}>{stat.present}</td>
+                      <td className="cell-border stat-cell text-red-700" style={{ width: '11mm' }}>{stat.absent}</td>
+                      <td className="cell-border stat-cell" style={{ width: '11mm' }}>{stat.late}</td>
+                      <td className="cell-border text-right px-2 font-bold" style={{ width: '33mm' }}>{stat.isDone ? stat.receiver : ''}</td>
                       <td className="cell-border" style={{ width: '22mm' }}></td>
                       <td className="cell-border" style={{ width: '22mm' }}></td>
                     </tr>
@@ -236,24 +240,24 @@ const AdminSupervisionMonitor: React.FC<Props> = ({ supervisions, users, student
 
           <tfoot>
             <tr>
-              <td colSpan={10} className="pt-12 border-none">
-                <div className="grid grid-cols-2 text-[12pt] font-black text-center gap-24 px-20">
-                   <div className="space-y-12">
-                      <p className="underline underline-offset-[6pt]">رئيس الكنترول</p>
-                      <div className="space-y-2">
+              <td colSpan={10} className="pt-8 border-none">
+                <div className="grid grid-cols-2 text-[10pt] font-black text-center gap-24 px-20">
+                   <div className="space-y-8">
+                      <p className="underline underline-offset-[4pt]">رئيس الكنترول</p>
+                      <div className="space-y-1">
                         <p className="text-slate-900">{controlManagerName}</p>
                         <p className="text-slate-300">....................................</p>
                       </div>
                    </div>
-                   <div className="space-y-12">
-                      <p className="underline underline-offset-[6pt]">مدير المدرسة</p>
-                      <div className="space-y-2">
+                   <div className="space-y-8">
+                      <p className="underline underline-offset-[4pt]">مدير المدرسة</p>
+                      <div className="space-y-1">
                         <p className="text-slate-300">....................................</p>
                         <p className="text-slate-300">....................................</p>
                       </div>
                    </div>
                 </div>
-                <div className="text-left mt-12 text-[7pt] text-slate-300 italic px-4 border-t pt-2">
+                <div className="text-left mt-6 text-[6pt] text-slate-300 italic px-4 border-t pt-1">
                    نظام كنترول الاختبارات المطور | استخراج: {new Date().toLocaleString('ar-SA')}
                 </div>
               </td>
