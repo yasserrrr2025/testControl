@@ -9,6 +9,9 @@ import AdminStudentsManager from './screens/admin/StudentsManager';
 import AdminSupervisionMonitor from './screens/admin/SupervisionMonitor';
 import AdminOfficialForms from './screens/admin/OfficialForms';
 import AdminSystemSettings from './screens/admin/SystemSettings';
+import AdminProctorPerformance from './screens/admin/ProctorPerformance';
+import CommitteeLabelsPrint from './screens/admin/CommitteeLabelsPrint';
+import ControlHeadDashboard from './screens/admin/ControlHeadDashboard';
 import ControlManager from './screens/admin/ControlManager';
 import ControlRoomMonitor from './screens/admin/ControlRoomMonitor';
 import ProctorDailyAssignmentFlow from './screens/proctor/DailyAssignmentFlow';
@@ -50,16 +53,12 @@ const App: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      // 1. جلب الإعدادات أولاً للحصول على التاريخ النشط المعتمد
       const cfg = await db.config.get();
       let filterDate = systemConfig.active_exam_date;
-      
       if (cfg) {
         setSystemConfig(prev => ({ ...prev, ...cfg }));
         filterDate = cfg.active_exam_date || filterDate;
       }
-
-      // 2. جلب باقي البيانات
       const [u, s, sv, ab, cr, dl] = await Promise.all([
         db.users.getAll(),
         db.students.getAll(),
@@ -68,39 +67,45 @@ const App: React.FC = () => {
         db.controlRequests.getAll(),
         db.deliveryLogs.getAll(),
       ]);
-
       setUsers(u);
       setStudents(s);
-      
-      // 3. الفلترة بناءً على التاريخ النشط في إعدادات النظام لضمان Persistence
       if (filterDate) {
         setSupervisions(sv.filter(i => i.date && i.date.startsWith(filterDate))); 
         setAbsences(ab.filter(i => i.date && i.date.startsWith(filterDate))); 
         setDeliveryLogs(dl.filter(i => i.time && i.time.startsWith(filterDate)));
         setControlRequests(cr.filter(i => i.time && i.time.startsWith(filterDate)));
       }
-
-      if (currentUser) {
-        const { data: notes } = await supabase.from('notifications')
-          .select('*')
-          .or(`target_role.eq.ALL,target_role.eq.${currentUser.role}`)
-          .gte('created_at', filterDate)
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (notes && notes.length > 0) {
-          const lastNote = notes[0];
-          setNotifications(prev => {
-            const exists = prev.some(n => n.id === lastNote.id);
-            if (!exists) return [{ id: lastNote.id, text: lastNote.text, type: 'broadcast' }, ...prev].slice(0, 3);
-            return prev;
-          });
-        }
-      }
     } catch (err: any) {
       console.warn("Sync Warning:", err.message);
     }
   }, [currentUser?.id, currentUser?.role]);
+
+  // محرك المطابقة التلقائي
+  const runAutoConfirmation = useCallback(async () => {
+    if (!currentUser || !['ADMIN', 'CONTROL', 'CONTROL_MANAGER'].includes(currentUser.role)) return;
+
+    const pendingLogs = deliveryLogs.filter(l => l.status === 'PENDING' && l.type === 'RECEIVE');
+    if (pendingLogs.length === 0) return;
+
+    const activeDate = systemConfig.active_exam_date || new Date().toISOString().split('T')[0];
+
+    for (const log of pendingLogs) {
+      const isAuthorized = currentUser.role === 'ADMIN' || currentUser.role === 'CONTROL_MANAGER' || currentUser.assigned_grades?.includes(log.grade);
+      if (!isAuthorized) continue;
+
+      const committeeStudents = students.filter(s => s.committee_number === log.committee_number && s.grade === log.grade);
+      if (committeeStudents.length > 0) {
+        await db.deliveryLogs.upsert({
+          ...log,
+          status: 'CONFIRMED',
+          teacher_name: `تلقائي (${currentUser.full_name})`,
+          time: new Date().toISOString()
+        });
+        addLocalNotification(`تم استلام لجنة ${log.committee_number} (${log.grade}) تلقائياً للمطابقة`, 'success');
+      }
+    }
+    await fetchData();
+  }, [currentUser, deliveryLogs, students, absences, systemConfig.active_exam_date, fetchData]);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser');
@@ -109,7 +114,7 @@ const App: React.FC = () => {
         const user = JSON.parse(savedUser);
         setCurrentUser(user);
         const lastTab = localStorage.getItem('activeTab');
-        setActiveTab(lastTab || (user.role === 'ADMIN' ? 'dashboard' : 'my-tasks'));
+        setActiveTab(lastTab || (user.role === 'ADMIN' ? 'dashboard' : user.role === 'CONTROL_MANAGER' ? 'head-dash' : 'my-tasks'));
       } catch (e) { localStorage.removeItem('currentUser'); }
     }
     fetchData();
@@ -117,19 +122,48 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [fetchData]);
 
+  useEffect(() => {
+    const isAutoMode = localStorage.getItem('auto_receipt_enabled') === 'true';
+    if (isAutoMode && deliveryLogs.some(l => l.status === 'PENDING')) {
+      runAutoConfirmation();
+    }
+  }, [deliveryLogs, runAutoConfirmation]);
+
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem('currentUser');
     localStorage.removeItem('activeTab');
   };
 
+  const onAssignProctor = async (teacherId: string, committeeNumber: string) => {
+    try {
+      await db.supervision.deleteByTeacherId(teacherId);
+      const existingInCommittee = supervisions.find(s => s.committee_number === committeeNumber);
+      if (existingInCommittee) {
+        await db.supervision.deleteByTeacherId(existingInCommittee.teacher_id);
+      }
+      await db.supervision.insert({
+        id: crypto.randomUUID(),
+        teacher_id: teacherId,
+        committee_number: committeeNumber,
+        date: new Date().toISOString(),
+        period: 1,
+        subject: 'اختبار'
+      });
+      await fetchData();
+      addLocalNotification(`تم إسناد اللجنة ${committeeNumber} بنجاح`, 'success');
+    } catch (error: any) {
+      addLocalNotification(`خطأ في الإسناد: ${error.message}`, 'error');
+    }
+  };
+
   const commonProps = { onAlert: addLocalNotification };
 
   const renderContent = () => {
     if (!currentUser) return null;
-    
     switch (activeTab) {
       case 'dashboard': return <AdminDashboardOverview stats={{ students: students.length, users: users.length, activeSupervisions: supervisions.length }} absences={absences} supervisions={supervisions} users={users} deliveryLogs={deliveryLogs} studentsList={students} onBroadcast={(m, t) => db.notifications.broadcast(m, t, currentUser.full_name)} systemConfig={systemConfig} />;
+      case 'head-dash': return <ControlHeadDashboard users={users} students={students} absences={absences} deliveryLogs={deliveryLogs} requests={controlRequests} supervisions={supervisions} systemConfig={systemConfig} onBroadcast={(m, t) => db.notifications.broadcast(m, t, currentUser.full_name)} />;
       case 'control-monitor': return (
         <div className="fixed inset-0 z-[200] bg-slate-950">
            <button onClick={() => setActiveTab('dashboard')} className="fixed top-6 left-6 z-[210] bg-white/10 hover:bg-white/20 text-white p-3 rounded-full no-print">
@@ -138,13 +172,15 @@ const App: React.FC = () => {
            <ControlRoomMonitor absences={absences} supervisions={supervisions} users={users} deliveryLogs={deliveryLogs} students={students} requests={controlRequests} />
         </div>
       );
-      case 'control-manager': return <ControlManager users={users} deliveryLogs={deliveryLogs} students={students} onBroadcast={(m, t) => db.notifications.broadcast(m, t, currentUser.full_name)} onUpdateUserGrades={async (userId, grades) => { const uMatch = users.find(u => u.id === userId); if (uMatch) { await db.users.upsert([{ ...uMatch, assigned_grades: grades }]); await fetchData(); } }} systemConfig={systemConfig} absences={absences} supervisions={supervisions} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} setSystemConfig={async (cfg) => { await db.config.upsert(cfg); await fetchData(); }} onRemoveSupervision={async (id) => { await db.supervision.deleteByTeacherId(id); await fetchData(); }} />;
+      case 'proctor-excellence': return <AdminProctorPerformance users={users} supervisions={supervisions} deliveryLogs={deliveryLogs} absences={absences} systemConfig={systemConfig} />;
+      case 'committee-labels': return <CommitteeLabelsPrint students={students} />;
+      case 'control-manager': return <ControlManager users={users} deliveryLogs={deliveryLogs} students={students} onBroadcast={(m, t) => db.notifications.broadcast(m, t, currentUser.full_name)} onUpdateUserGrades={async (userId, grades) => { const uMatch = users.find(u => u.id === userId); if (uMatch) { await db.users.upsert([{ ...uMatch, assigned_grades: grades }]); await fetchData(); } }} systemConfig={systemConfig} absences={absences} supervisions={supervisions} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} setSystemConfig={async (cfg) => { await db.config.upsert(cfg); await fetchData(); }} onRemoveSupervision={async (id) => { await db.supervision.deleteByTeacherId(id); await fetchData(); }} onAssignProctor={onAssignProctor} />;
       case 'teachers': return <AdminUsersManager users={users} setUsers={async (u) => { await db.users.upsert(typeof u === 'function' ? u(users) : u); await fetchData(); }} students={students} onDeleteUser={async (id) => { if(confirm('حذف؟')) { await db.users.delete(id); await fetchData(); } }} {...commonProps} />;
       case 'students': return <AdminStudentsManager students={students} setStudents={async (s) => { await db.students.upsert(typeof s === 'function' ? s(students) : s); await fetchData(); }} onDeleteStudent={async (id) => { if(confirm('حذف؟')) { await db.students.delete(id); await fetchData(); } }} {...commonProps} />;
       case 'committees': return <AdminSupervisionMonitor supervisions={supervisions} users={users} students={students} absences={absences} deliveryLogs={deliveryLogs} />;
       case 'official-forms': return <AdminOfficialForms absences={absences} students={students} supervisions={supervisions} users={users} />;
       case 'settings': return <AdminSystemSettings systemConfig={systemConfig} setSystemConfig={async (cfg) => { await db.config.upsert(cfg); await fetchData(); }} resetFunctions={{ students: async () => { if(confirm('حذف الطلاب؟')) { await supabase.from('students').delete().neq('id', '0'); await fetchData(); } }, teachers: async () => { if(confirm('حذف المعلمين؟')) { await supabase.from('users').delete().neq('role', 'ADMIN'); await fetchData(); } }, operations: async () => { if(confirm('تصفير سجلات اليوم؟')) { await supabase.from('absences').delete().gte('date', systemConfig.active_exam_date); await supabase.from('delivery_logs').delete().gte('time', systemConfig.active_exam_date); await fetchData(); } }, fullReset: () => {} }} />;
-      case 'assigned-requests': return <AssistantControlView user={currentUser} requests={controlRequests} setRequests={fetchData} absences={absences} students={students} {...commonProps} />;
+      case 'assigned-requests': return <AssistantControlView user={currentUser} requests={controlRequests} setRequests={fetchData} absences={absences} students={students} users={users} {...commonProps} />;
       case 'paper-logs': return <ControlReceiptView user={currentUser} students={students} absences={absences} deliveryLogs={deliveryLogs} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} supervisions={supervisions} users={users} controlRequests={controlRequests} setControlRequests={fetchData} systemConfig={systemConfig} {...commonProps} />;
       case 'receipt-history': return <ReceiptLogsView deliveryLogs={deliveryLogs} users={users} />;
       case 'digital-id': return <TeacherBadgeView user={currentUser} />;
@@ -166,13 +202,11 @@ const App: React.FC = () => {
                 {notifications.length > 0 && <span className="absolute -top-1 -right-1 bg-red-600 w-4 h-4 rounded-full text-[8px] text-white flex items-center justify-center font-bold">{notifications.length}</span>}
              </div>
           </header>
-          
           <div className="no-print">
             <Sidebar user={currentUser} onLogout={handleLogout} activeTab={activeTab} setActiveTab={(t) => { setActiveTab(t); localStorage.setItem('activeTab', t); }} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} isCollapsed={isSidebarCollapsed} setIsCollapsed={setIsSidebarCollapsed} controlRequests={controlRequests} />
           </div>
         </>
       )}
-      
       <main className={`transition-all duration-300 min-h-screen ${currentUser ? (isSidebarCollapsed ? 'lg:mr-24' : 'lg:mr-80') : ''} ${currentUser ? 'p-6 lg:p-10 pt-24 lg:pt-10' : ''}`}>
         {currentUser ? renderContent() : <Login users={users} onLogin={(u) => { setCurrentUser(u); localStorage.setItem('currentUser', JSON.stringify(u)); }} />}
       </main>

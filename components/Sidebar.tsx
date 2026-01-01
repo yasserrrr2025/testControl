@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, GraduationCap, ClipboardList, LogOut,
   ShieldAlert, Inbox, FileText, Settings, X, ChevronRight, ChevronLeft,
   History, IdCard, UserCircle, ShieldCheck, ShieldHalf, Bell, Shield,
-  Monitor, Fingerprint, MonitorPlay
+  Monitor, Fingerprint, MonitorPlay, Award, LayoutPanelTop, QrCode
 } from 'lucide-react';
 import { UserRole, User, ControlRequest } from '../types';
 import { APP_CONFIG, ROLES_ARABIC } from '../constants';
@@ -39,9 +39,12 @@ const Sidebar: React.FC<SidebarProps> = ({
   ).length;
 
   const adminLinks: SidebarLink[] = [
-    { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
+    { id: 'head-dash', label: 'غرفة العمليات', icon: LayoutPanelTop },
+    { id: 'dashboard', label: 'الإحصائيات العامة', icon: LayoutDashboard },
     { id: 'control-monitor', label: 'لوحة العرض (TV)', icon: MonitorPlay },
-    { id: 'control-manager', label: 'مركز قيادة الكنترول', icon: ShieldHalf },
+    { id: 'control-manager', label: 'مركز القيادة', icon: ShieldHalf },
+    { id: 'proctor-excellence', label: 'سجل التميز', icon: Award },
+    { id: 'committee-labels', label: 'ملصقات اللجان (QR)', icon: QrCode },
     { id: 'teachers', label: 'الصلاحيات', icon: Users },
     { id: 'students', label: 'الطلاب', icon: GraduationCap },
     { id: 'committees', label: 'المراقبة', icon: ClipboardList },
@@ -50,7 +53,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   const controlManagerLinks: SidebarLink[] = [
-    { id: 'control-manager', label: 'مركز قيادة الكنترول', icon: ShieldHalf },
+    { id: 'head-dash', label: 'غرفة العمليات', icon: LayoutPanelTop },
+    { id: 'control-manager', label: 'مركز القيادة', icon: ShieldHalf },
     { id: 'paper-logs', label: 'استلام المظاريف', icon: Inbox },
     { id: 'receipt-history', label: 'سجل العمليات', icon: History },
   ];
@@ -126,24 +130,15 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div className="px-6 pb-4">
             <div className="bg-[#0f172a] rounded-[2rem] p-5 border border-blue-900/30 relative overflow-hidden group shadow-2xl transition-all hover:border-blue-500/50">
                <div className="absolute top-0 left-0 w-24 h-24 bg-blue-600/10 blur-3xl rounded-full -ml-12 -mt-12"></div>
-               
                <div className="relative z-10 flex flex-col items-center gap-3">
                   <div className="w-14 h-14 bg-white rounded-xl p-1.5 shadow-xl border border-white/10 group-hover:scale-105 transition-transform">
                      <img src={APP_CONFIG.LOGO_URL} alt="MinLogo" className="w-full h-full object-contain" />
                   </div>
-                  
                   <div className="text-center">
                     <h4 className="text-sm font-black text-white leading-tight mb-2 truncate max-w-[180px]">{user.full_name}</h4>
                     <div className="bg-blue-600/20 text-blue-400 border border-blue-500/30 px-3 py-1 rounded-lg text-[10px] font-black inline-block uppercase tracking-tight">
                        {ROLES_ARABIC[user.role]}
                     </div>
-                  </div>
-
-                  <div className="w-full pt-3 mt-1 border-t border-white/5 flex justify-between items-center px-1 text-right">
-                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
-                        <Shield size={10} className="text-emerald-500"/> حساب مؤمن
-                     </span>
-                     <span className="text-[9px] font-mono text-slate-500">ID: {user.national_id.slice(-4)}</span>
                   </div>
                </div>
             </div>

@@ -8,7 +8,7 @@ import {
   X, Send, RefreshCcw, BellRing, ShieldAlert, AlertOctagon,
   PackageCheck, PackageSearch, Camera, Shield, Zap, FileWarning, 
   Plus, Minus, Check, Info, Ambulance, Pen, NotebookPen, 
-  UserSearch, MessageCircleWarning, ArrowRight, MessageCircle, Backpack
+  UserSearch, MessageCircleWarning, ArrowRight, MessageCircle, Backpack, History, Clock, ClipboardList
 } from 'lucide-react';
 import { db } from '../../supabase';
 import { APP_CONFIG } from '../../constants';
@@ -33,6 +33,7 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
   const [isScanning, setIsScanning] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'CURRENT' | 'ARCHIVE'>('CURRENT');
   
   // حالات البلاغات
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
@@ -61,11 +62,41 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
 
   const activeCommittee = activeAssignment?.committee_number || null;
 
+  // إحصائيات الأرشيف (اللجان التي تم تسليمها من قبل هذا المراقب)
+  const myArchive = useMemo(() => {
+    // نجمع سجلات الاستلام (RECEIVE) التي تخص هذا المراقب
+    const logs = deliveryLogs.filter(l => l.proctor_name === user.full_name && l.type === 'RECEIVE');
+    
+    // تجميع السجلات حسب رقم اللجنة والتاريخ لتمثيل "مهمة إغلاق كاملة"
+    const grouped: Record<string, { committee: string, date: string, time: string, grades: string[], status: string }> = {};
+    
+    logs.forEach(l => {
+      const day = l.time.split('T')[0];
+      const key = `${l.committee_number}_${day}`;
+      if (!grouped[key]) {
+        grouped[key] = {
+          committee: l.committee_number,
+          date: day,
+          time: new Date(l.time).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+          grades: [],
+          status: l.status || 'PENDING'
+        };
+      }
+      if (!grouped[key].grades.includes(l.grade)) {
+        grouped[key].grades.push(l.grade);
+      }
+      // إذا كان هناك سجل واحد مؤكد، نعتبر الحالة مؤكدة في الأرشيف
+      if (l.status === 'CONFIRMED') grouped[key].status = 'CONFIRMED';
+    });
+
+    return Object.values(grouped).sort((a, b) => b.date.localeCompare(a.date));
+  }, [deliveryLogs, user.full_name]);
+
   // إدارة حالة التحميل الأولية لتجنب وميض شاشة المسح
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsInitialLoading(false);
-    }, 1500); // نعطي فرصة لجلب البيانات من Supabase
+    }, 1500); 
     return () => clearTimeout(timer);
   }, [supervisions]);
 
@@ -96,7 +127,6 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
     const cleanedNum = committeeNum.trim();
     if (!cleanedNum || isJoining) return;
     
-    // فحص إذا كانت اللجنة مشغولة بمراقب آخر في نفس التاريخ النشط
     const occupiedBy = supervisions.find(s => s.committee_number === cleanedNum && s.date && s.date.startsWith(activeDate));
     if (occupiedBy && occupiedBy.teacher_id !== user.id) {
        onAlert(`تنبيه: اللجنة ${cleanedNum} مسجلة لمراقب آخر.`);
@@ -110,7 +140,7 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
         id: crypto.randomUUID(), 
         teacher_id: user.id, 
         committee_number: cleanedNum, 
-        date: new Date().toISOString(), // سيتم الفلترة بـ startsWith(activeDate)
+        date: new Date().toISOString(), 
         period: 1, 
         subject: 'اختبار' 
       });
@@ -220,20 +250,93 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
     );
   }
 
+  // الجزء العلوي لتبديل العرض (العمليات / الأرشيف)
+  const TabsHeader = () => (
+    <div className="flex justify-center mb-8 no-print">
+      <div className="bg-white p-1.5 rounded-[2rem] shadow-xl border flex gap-1 w-full max-w-md">
+        <button 
+          onClick={() => setActiveTab('CURRENT')} 
+          className={`flex-1 py-3.5 rounded-[1.5rem] font-black text-sm flex items-center justify-center gap-2 transition-all ${activeTab === 'CURRENT' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}
+        >
+          <ClipboardList size={18} /> اللجنة الحالية
+        </button>
+        <button 
+          onClick={() => setActiveTab('ARCHIVE')} 
+          className={`flex-1 py-3.5 rounded-[1.5rem] font-black text-sm flex items-center justify-center gap-2 transition-all ${activeTab === 'ARCHIVE' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}
+        >
+          <History size={18} /> الأرشيف ({myArchive.length})
+        </button>
+      </div>
+    </div>
+  );
+
+  // عرض الأرشيف
+  if (activeTab === 'ARCHIVE') {
+    return (
+      <div className="space-y-8 animate-fade-in max-w-5xl mx-auto text-right pb-32 px-4 md:px-0">
+        <TabsHeader />
+        <div className="flex items-center gap-4 mb-8">
+           <div className="p-4 bg-slate-100 rounded-2xl text-slate-600 shadow-inner"><History size={32} /></div>
+           <div>
+              <h2 className="text-3xl font-black text-slate-900 tracking-tighter">سجل الإنجاز الميداني</h2>
+              <p className="text-slate-400 font-bold italic text-sm">كافة اللجان التي باشرت إغلاقها مسبقاً</p>
+           </div>
+        </div>
+
+        {myArchive.length === 0 ? (
+          <div className="py-32 text-center bg-white rounded-[4rem] border-2 border-dashed border-slate-200 flex flex-col items-center gap-6">
+            <History size={80} className="text-slate-100" />
+            <p className="text-2xl font-black text-slate-300 italic">لا يوجد سجلات في الأرشيف حالياً</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {myArchive.map((item, idx) => (
+              <div key={idx} className="bg-white p-8 rounded-[3rem] border-2 border-slate-50 shadow-xl relative overflow-hidden group hover:scale-[1.02] transition-all">
+                <div className={`absolute top-0 right-0 w-2 h-full ${item.status === 'CONFIRMED' ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
+                <div className="flex justify-between items-start mb-6">
+                   <div className="bg-slate-950 text-white w-16 h-16 rounded-2xl flex flex-col items-center justify-center font-black">
+                      <span className="text-[8px] opacity-40 leading-none mb-1">لجنة</span>
+                      <span className="text-2xl leading-none">{item.committee}</span>
+                   </div>
+                   <div className="text-left">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{item.date}</p>
+                      <p className="text-lg font-black text-slate-900 mt-1">{item.time}</p>
+                   </div>
+                </div>
+                <div className="space-y-4">
+                   <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                      <p className="text-[8px] font-black text-slate-400 uppercase mb-2">الصفوف المنجزة:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {item.grades.map(g => <span key={g} className="bg-white px-3 py-1 rounded-lg text-[10px] font-black border text-slate-600">{g}</span>)}
+                      </div>
+                   </div>
+                   <div className={`flex items-center justify-center gap-3 py-3 rounded-xl font-black text-xs ${item.status === 'CONFIRMED' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
+                      {item.status === 'CONFIRMED' ? <><CheckCircle2 size={16}/> تم الاستلام النهائي</> : <><Loader2 size={16} className="animate-spin"/> بانتظار إغلاق الكنترول</>}
+                   </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // شاشة النجاح النهائية
   if (isAlreadyDelivered || (isClosingWizardOpen && closingStep === 2)) {
     return (
-      <div className="max-w-4xl mx-auto py-24 px-6 text-center space-y-12 animate-fade-in min-h-[80vh] flex flex-col items-center justify-center">
-          <div className="bg-emerald-500 w-36 h-36 rounded-full flex items-center justify-center mx-auto shadow-2xl border-8 border-white animate-bounce">
-              <ShieldCheck size={84} className="text-white" />
+      <div className="max-w-4xl mx-auto py-10 px-6 text-center space-y-12 animate-fade-in min-h-[80vh] flex flex-col items-center justify-center">
+          <TabsHeader />
+          <div className="bg-emerald-500 w-32 h-32 rounded-full flex items-center justify-center mx-auto shadow-2xl border-8 border-white animate-bounce">
+              <ShieldCheck size={72} className="text-white" />
           </div>
-          <div className="space-y-6">
-              <h2 className="text-5xl font-black text-slate-900 tracking-tighter">بانتظار عضو الكنترول</h2>
-              <p className="text-2xl font-bold text-slate-500 italic leading-relaxed">
+          <div className="space-y-4">
+              <h2 className="text-4xl font-black text-slate-900 tracking-tighter">بانتظار عضو الكنترول</h2>
+              <p className="text-xl font-bold text-slate-500 italic leading-relaxed">
                 شكراً لجهودك {user.full_name}، تم توثيق بيانات اللجنة {activeCommittee} بنجاح. يرجى إبقاء هذه الشاشة مفتوحة أمام عضو الكنترول لإتمام الاستلام النهائي.
               </p>
           </div>
-          <button onClick={() => window.location.reload()} className="bg-slate-950 text-white px-16 py-6 rounded-[2.5rem] font-black text-2xl shadow-xl active:scale-95 transition-all">تحديث الحالة</button>
+          <button onClick={() => window.location.reload()} className="bg-slate-950 text-white px-12 py-5 rounded-[2.5rem] font-black text-xl shadow-xl active:scale-95 transition-all">تحديث الحالة</button>
       </div>
     );
   }
@@ -241,7 +344,8 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
   // إذا لم يكن مكلفاً بلجنة، تظهر شاشة المسح
   if (!activeCommittee) {
     return (
-      <div className="max-w-4xl mx-auto py-10 px-4 space-y-12 animate-fade-in text-center">
+      <div className="max-w-4xl mx-auto py-6 px-4 space-y-8 animate-fade-in text-center">
+         <TabsHeader />
          <div className="bg-slate-950 p-10 rounded-[4rem] text-white shadow-2xl relative overflow-hidden border-b-[10px] border-blue-600 mb-6">
             <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 blur-[100px] rounded-full"></div>
             <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-10">
@@ -285,7 +389,7 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
   // شاشة اللجنة النشطة
   return (
     <div className="space-y-8 animate-fade-in max-w-7xl mx-auto text-right pb-48 px-4 md:px-0">
-       
+       <TabsHeader />
        {/* هيدر معلومات اللجنة */}
        <div className="bg-slate-950 p-8 md:p-10 rounded-[3.5rem] text-white shadow-2xl relative overflow-hidden border-b-[8px] border-blue-600">
           <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
@@ -501,7 +605,7 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({ user, supervisions, setSu
                                         <span className="font-black text-slate-800 text-xl block">{s.name}</span>
                                         <span className="text-[10px] text-slate-400 font-bold uppercase">{s.grade}</span>
                                      </div>
-                                     <button onClick={() => toggleStudentStatus(s, abs.type === 'ABSENT' ? 'LATE' : 'ABSENT')} className={`px-8 py-4 rounded-2xl font-black text-xs shadow-lg transition-all ${abs.type === 'ABSENT' ? 'bg-red-600 text-white' : 'bg-amber-500 text-white'}`}>
+                                     <button onClick={() => toggleStudentStatus(s, abs.type === 'ABSENT' ? 'LATE' : 'ABSENT')} className={`px-8 py-4 rounded-2xl font-black text-xs shadow-lg transition-all ${abs.type === 'ABSENT' ? 'bg-red-600 text-white' : 'bg-amber-50 text-white'}`}>
                                         {abs.type === 'ABSENT' ? 'غائب (تحويل لمتأخر)' : 'متأخر (تحويل لغائب)'}
                                      </button>
                                   </div>

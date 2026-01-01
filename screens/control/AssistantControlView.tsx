@@ -5,7 +5,8 @@ import {
   Check, ShieldCheck, Loader2, ArrowRightCircle, UserCheck, 
   BellRing, History, Clock, UserX, Activity, CheckCircle, 
   ChevronLeft, MapPin, Fingerprint, ShieldAlert, PhoneOutgoing,
-  QrCode, X, Search, Navigation, AlertOctagon
+  QrCode, X, Search, Navigation, AlertOctagon, Users, Phone,
+  CircleDot, HelpCircle
 } from 'lucide-react';
 import { db } from '../../supabase';
 import TeacherBadgeView from '../proctor/TeacherBadgeView';
@@ -17,12 +18,30 @@ interface Props {
   absences: Absence[];
   students: Student[];
   onAlert: any;
+  users?: User[]; // أضفنا هذا لاستقبال قائمة المستخدمين كاملة
 }
 
-const AssistantControlView: React.FC<Props> = ({ user, requests, setRequests, absences, students, onAlert }) => {
-  const [activeTab, setActiveTab] = useState<'MISSION_CONTROL' | 'FIELD_LOGS'>('MISSION_CONTROL');
+const AssistantControlView: React.FC<Props> = ({ user, requests, setRequests, absences, students, onAlert, users = [] }) => {
+  const [activeTab, setActiveTab] = useState<'MISSION_CONTROL' | 'FIELD_LOGS' | 'TEAM_RADAR'>('MISSION_CONTROL');
   const [showBadge, setShowBadge] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+
+  // تحليل حالة الفريق
+  const teamStatus = useMemo(() => {
+    const fieldStaff = users.filter(u => 
+      (u.role === 'ASSISTANT_CONTROL' || u.role === 'CONTROL') && u.id !== user.id
+    );
+
+    return fieldStaff.map(member => {
+      const activeTask = requests.find(r => r.assistant_name === member.full_name && r.status === 'IN_PROGRESS');
+      return {
+        ...member,
+        isBusy: !!activeTask,
+        currentCommittee: activeTask?.committee || null,
+        currentTask: activeTask?.text || null
+      };
+    });
+  }, [users, requests, user.id]);
 
   const myRequests = useMemo(() => 
     requests.filter((r: ControlRequest) => user.assigned_committees?.includes(r.committee)), 
@@ -96,25 +115,98 @@ const AssistantControlView: React.FC<Props> = ({ user, requests, setRequests, ab
                    <p className="text-[10px] font-black uppercase text-slate-500 mb-2">طلبات معلقة</p>
                    <p className={`text-6xl font-black tabular-nums ${urgentCount > 0 ? 'text-red-500' : 'text-white'}`}>{urgentCount}</p>
                 </div>
-                <div onClick={() => setActiveTab('FIELD_LOGS')} className="bg-white/5 border border-white/10 p-8 rounded-[3rem] text-center min-w-[160px] shadow-inner cursor-pointer hover:bg-white/10 transition-all">
-                   <p className="text-[10px] font-black uppercase text-slate-500 mb-2">غياب اللجان</p>
-                   <p className="text-6xl font-black text-white tabular-nums">{myCommitteeAbsences.filter(a => a.type === 'ABSENT').length}</p>
+                <div onClick={() => setActiveTab('TEAM_RADAR')} className="bg-blue-600/20 border border-blue-500/30 p-8 rounded-[3rem] text-center min-w-[160px] shadow-inner cursor-pointer hover:bg-blue-600/30 transition-all group">
+                   <p className="text-[10px] font-black uppercase text-blue-400 mb-2 group-hover:text-white transition-colors">رادار الفريق</p>
+                   <div className="flex items-center justify-center gap-2">
+                     <p className="text-6xl font-black text-white tabular-nums">{teamStatus.length}</p>
+                     <Users size={24} className="text-blue-400" />
+                   </div>
                 </div>
              </div>
           </div>
        </div>
 
        {/* مبدل المهام العصري */}
-       <div className="flex justify-center mb-10">
-          <div className="bg-white p-2 rounded-[2.5rem] shadow-xl border flex gap-2 w-full max-w-md">
-             <button onClick={() => setActiveTab('MISSION_CONTROL')} className={`flex-1 py-4 rounded-[1.8rem] font-black text-sm flex items-center justify-center gap-3 transition-all ${activeTab === 'MISSION_CONTROL' ? 'bg-slate-900 text-white shadow-xl' : 'text-slate-400 hover:bg-slate-50'}`}>
-                <BellRing size={20} /> البلاغات العاجلة
+       <div className="flex justify-center mb-10 overflow-x-auto custom-scrollbar pb-2">
+          <div className="bg-white p-2 rounded-[2.5rem] shadow-xl border flex gap-2 w-full max-w-xl shrink-0">
+             <button onClick={() => setActiveTab('MISSION_CONTROL')} className={`flex-1 py-4 px-6 rounded-[1.8rem] font-black text-sm flex items-center justify-center gap-3 transition-all ${activeTab === 'MISSION_CONTROL' ? 'bg-slate-900 text-white shadow-xl' : 'text-slate-400 hover:bg-slate-50'}`}>
+                <BellRing size={20} /> البلاغات
              </button>
-             <button onClick={() => setActiveTab('FIELD_LOGS')} className={`flex-1 py-4 rounded-[1.8rem] font-black text-sm flex items-center justify-center gap-3 transition-all ${activeTab === 'FIELD_LOGS' ? 'bg-slate-900 text-white shadow-xl' : 'text-slate-400 hover:bg-slate-50'}`}>
-                <UserX size={20} /> قائمة الغياب
+             <button onClick={() => setActiveTab('TEAM_RADAR')} className={`flex-1 py-4 px-6 rounded-[1.8rem] font-black text-sm flex items-center justify-center gap-3 transition-all ${activeTab === 'TEAM_RADAR' ? 'bg-slate-900 text-white shadow-xl' : 'text-slate-400 hover:bg-slate-50'}`}>
+                <Activity size={20} /> رادار الفريق
+             </button>
+             <button onClick={() => setActiveTab('FIELD_LOGS')} className={`flex-1 py-4 px-6 rounded-[1.8rem] font-black text-sm flex items-center justify-center gap-3 transition-all ${activeTab === 'FIELD_LOGS' ? 'bg-slate-900 text-white shadow-xl' : 'text-slate-400 hover:bg-slate-50'}`}>
+                <UserX size={20} /> الغياب
              </button>
           </div>
        </div>
+
+       {/* عرض رادار الفريق */}
+       {activeTab === 'TEAM_RADAR' && (
+         <div className="animate-slide-up space-y-8">
+            <div className="flex items-center justify-between px-6">
+                <h3 className="text-2xl font-black text-slate-800 flex items-center gap-4">
+                   <Users size={28} className="text-blue-600" /> حالة الفريق الميداني اللحظية
+                </h3>
+                <div className="bg-blue-50 text-blue-600 px-4 py-2 rounded-full font-black text-[10px] uppercase tracking-widest">Live Coordination</div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+               {teamStatus.length === 0 ? (
+                 <div className="col-span-full py-40 text-center text-slate-300">
+                    <HelpCircle size={80} className="mx-auto opacity-20 mb-4" />
+                    <p className="text-2xl font-black italic">لا يوجد أعضاء فريق ميداني مسجلين حالياً</p>
+                 </div>
+               ) : (
+                 teamStatus.map(member => (
+                   <div key={member.id} className={`bg-white p-8 rounded-[3.5rem] border-2 shadow-xl transition-all relative overflow-hidden group ${member.isBusy ? 'border-blue-400 bg-blue-50/10' : 'border-slate-50'}`}>
+                      <div className="flex justify-between items-start mb-6">
+                         <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg transition-colors ${member.isBusy ? 'bg-blue-600 text-white' : 'bg-slate-900 text-white'}`}>
+                            <UserCheck size={32} />
+                         </div>
+                         <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase flex items-center gap-2 ${member.isBusy ? 'bg-blue-100 text-blue-600 animate-pulse' : 'bg-emerald-100 text-emerald-600'}`}>
+                            <CircleDot size={12} fill="currentColor" />
+                            {member.isBusy ? 'في مهمة عمل' : 'متاح حالياً'}
+                         </div>
+                      </div>
+
+                      <div className="space-y-4 mb-8">
+                         <div>
+                            <h4 className="text-xl font-black text-slate-900 leading-tight">{member.full_name}</h4>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">مساعد ميداني معتمد</p>
+                         </div>
+                         
+                         {member.isBusy ? (
+                           <div className="p-4 bg-white rounded-2xl border border-blue-100 shadow-sm space-y-2">
+                              <p className="text-[8px] font-black text-blue-400 uppercase leading-none">الموقع الحالي:</p>
+                              <div className="flex items-center gap-2">
+                                 <MapPin size={14} className="text-blue-600" />
+                                 <span className="text-sm font-black text-slate-800">لجنة رقم {member.currentCommittee}</span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 font-bold truncate">المهمة: {member.currentTask}</p>
+                           </div>
+                         ) : (
+                           <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 text-center">
+                              <p className="text-[10px] font-black text-emerald-600">جاهز لاستلام بلاغات جديدة</p>
+                           </div>
+                         )}
+                      </div>
+
+                      <div className="grid grid-cols-1">
+                         <button 
+                           onClick={() => member.phone && window.open(`tel:${member.phone}`)}
+                           disabled={!member.phone}
+                           className={`w-full py-5 rounded-2xl font-black text-xs flex items-center justify-center gap-3 shadow-xl transition-all active:scale-95 ${member.phone ? 'bg-slate-950 text-white hover:bg-black' : 'bg-slate-100 text-slate-300 cursor-not-allowed'}`}
+                         >
+                            <Phone size={18} /> اتصال تنسيقي سريع
+                         </button>
+                      </div>
+                   </div>
+                 ))
+               )}
+            </div>
+         </div>
+       )}
 
        {/* عرض المهام الحية */}
        {activeTab === 'MISSION_CONTROL' ? (
@@ -174,7 +266,7 @@ const AssistantControlView: React.FC<Props> = ({ user, requests, setRequests, ab
                </div>
              )}
           </div>
-       ) : (
+       ) : activeTab === 'FIELD_LOGS' ? (
           <div className="animate-slide-up space-y-8">
              <div className="bg-white p-10 md:p-14 rounded-[4rem] border-2 border-slate-50 shadow-2xl">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12 border-b pb-10">
@@ -244,7 +336,7 @@ const AssistantControlView: React.FC<Props> = ({ user, requests, setRequests, ab
                 </div>
              </div>
           </div>
-       )}
+       ) : null}
 
        {/* بار التنقل السفلي المطور للهواتف */}
        <div className="fixed bottom-0 left-0 right-0 bg-slate-950/95 backdrop-blur-3xl border-t border-white/10 p-8 flex justify-around items-center z-[200] lg:hidden no-print shadow-[0_-20px_50px_rgba(0,0,0,0.6)] rounded-t-[4rem] dir-rtl">
@@ -257,13 +349,13 @@ const AssistantControlView: React.FC<Props> = ({ user, requests, setRequests, ab
              <div className={`p-5 rounded-[2rem] -mt-14 border-4 border-slate-950 transition-all ${activeTab === 'MISSION_CONTROL' && !showBadge ? 'bg-blue-600 shadow-2xl shadow-blue-600/40 text-white' : 'bg-white/5 text-slate-500'}`}>
                 <BellRing size={32} className={urgentCount > 0 ? "animate-bounce" : ""}/>
              </div>
-             <span className="text-[10px] font-black uppercase tracking-widest mt-1">المهمات الميدانية</span>
+             <span className="text-[10px] font-black uppercase tracking-widest mt-1">البلاغات</span>
              {urgentCount > 0 && <div className="absolute top-1 right-1 bg-red-600 text-white w-6 h-6 rounded-full text-[10px] font-black flex items-center justify-center border-2 border-slate-950 animate-pulse">{urgentCount}</div>}
           </button>
 
-          <button onClick={() => { setActiveTab('FIELD_LOGS'); setShowBadge(false); }} className={`flex flex-col items-center gap-2 transition-all ${activeTab === 'FIELD_LOGS' && !showBadge ? 'text-blue-400 scale-110' : 'text-slate-500'}`}>
-             <div className={`p-3 rounded-2xl ${activeTab === 'FIELD_LOGS' && !showBadge ? 'bg-blue-600/20 shadow-lg shadow-blue-500/20' : ''}`}><UserX size={32}/></div>
-             <span className="text-[10px] font-black uppercase tracking-widest">سجل الغياب</span>
+          <button onClick={() => { setActiveTab('TEAM_RADAR'); setShowBadge(false); }} className={`flex flex-col items-center gap-2 transition-all ${activeTab === 'TEAM_RADAR' && !showBadge ? 'text-blue-400 scale-110' : 'text-slate-500'}`}>
+             <div className={`p-3 rounded-2xl ${activeTab === 'TEAM_RADAR' && !showBadge ? 'bg-blue-600/20 shadow-lg shadow-blue-500/20' : ''}`}><Users size={32}/></div>
+             <span className="text-[10px] font-black uppercase tracking-widest">الفريق</span>
           </button>
        </div>
     </div>
