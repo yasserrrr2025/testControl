@@ -28,7 +28,6 @@ const CommitteeLabelsPrint: React.FC<Props> = ({ students }) => {
 
   const handlePrint = () => {
     setIsPrinting(true);
-    // ننتظر قليلاً لضمان رندر المحتوى في البوابة (Portal) قبل استدعاء أمر الطباعة
     setTimeout(() => {
       window.print();
     }, 500);
@@ -45,7 +44,7 @@ const CommitteeLabelsPrint: React.FC<Props> = ({ students }) => {
   return (
     <div className="space-y-10 animate-fade-in text-right pb-24">
       
-      {/* البوابة الخاصة بالطباعة - تظهر فقط عند الضغط على زر الطباعة */}
+      {/* البوابة الخاصة بالطباعة - محسنة للوضوح العالي */}
       {isPrinting && createPortal(
         <div id="labels-print-portal">
           <style>{`
@@ -62,12 +61,11 @@ const CommitteeLabelsPrint: React.FC<Props> = ({ students }) => {
                 margin: 0; 
                 padding: 0; 
                 -webkit-print-color-adjust: exact;
+                color: black !important;
               }
-              /* إخفاء التطبيق بالكامل */
               #root, #app-root, header, nav, .no-print { 
                 display: none !important; 
               }
-              /* إظهار بوابة الطباعة فقط */
               #labels-print-portal { 
                 display: block !important; 
                 position: absolute;
@@ -90,12 +88,13 @@ const CommitteeLabelsPrint: React.FC<Props> = ({ students }) => {
                 width: 70mm;
                 height: 42.4mm;
                 box-sizing: border-box;
-                border: 0.1pt solid rgba(0,0,0,0.05); /* إطار خفيف جداً للمساعدة في القص */
+                border: 0.2pt solid #000; /* إطار أسود واضح للقص */
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 overflow: hidden;
                 position: relative;
+                background: white;
               }
               .label-content {
                 width: 100%;
@@ -103,7 +102,11 @@ const CommitteeLabelsPrint: React.FC<Props> = ({ students }) => {
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                padding: 0 10mm;
+                padding: 0 5mm;
+              }
+              .text-black-bold {
+                color: #000 !important;
+                font-weight: 900 !important;
               }
             }
           `}</style>
@@ -114,21 +117,25 @@ const CommitteeLabelsPrint: React.FC<Props> = ({ students }) => {
                 {pageCommittees.map((comNum) => (
                   <div key={comNum} className="gs-1021-label">
                     <div className="label-content">
-                      <div className="flex-1 flex flex-col items-center justify-center gap-1 border-l border-slate-200 h-[80%]">
+                      {/* النص والشعار */}
+                      <div className="flex-1 flex flex-col items-center justify-center gap-1 border-l border-black h-[85%] relative">
                         <img 
                           src={APP_CONFIG.LOGO_URL} 
                           alt="Logo" 
-                          className="w-8 h-8 object-contain opacity-20 absolute top-2 right-2"
+                          className="w-10 h-10 object-contain mb-1" 
                         />
-                        <span className="text-[7pt] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">رقم اللجنة</span>
-                        <span className="text-[24pt] font-black text-slate-900 leading-none tabular-nums">{comNum}</span>
-                        <span className="text-[5pt] font-bold text-slate-400 mt-1 uppercase tracking-tighter text-center">نظام كنترول الاختبارات المطور</span>
+                        <span className="text-[8pt] font-black text-black-bold uppercase tracking-widest leading-none mb-1">لجنة رقم</span>
+                        <span className="text-[32pt] font-black text-black-bold leading-none tabular-nums" style={{ color: '#000' }}>{comNum}</span>
+                        <span className="text-[6pt] font-black text-black-bold mt-2 uppercase tracking-tighter text-center">كنترول الاختبارات الذكي</span>
                       </div>
-                      <div className="w-[45%] flex items-center justify-center p-2">
+                      
+                      {/* كود QR عالي التباين */}
+                      <div className="w-[40%] flex items-center justify-center">
                         <img 
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${comNum}`} 
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${comNum}&color=000000`} 
                           alt="QR" 
-                          className="w-16 h-16"
+                          className="w-20 h-20"
+                          style={{ imageRendering: 'pixelated' }}
                         />
                       </div>
                     </div>
@@ -148,15 +155,14 @@ const CommitteeLabelsPrint: React.FC<Props> = ({ students }) => {
           <div className="space-y-4">
              <div className="flex items-center gap-6">
                 <div className="bg-blue-600 p-4 rounded-3xl shadow-xl"><QrCode size={32} /></div>
-                <h3 className="text-3xl font-black tracking-tighter">طباعة ملصقات اللجان الذكية</h3>
+                <h3 className="text-3xl font-black tracking-tighter">طباعة ملصقات اللجان (وضوح عالٍ)</h3>
              </div>
              <p className="text-slate-400 font-bold max-w-xl leading-relaxed">
-               تم تصميم هذه القوالب لتناسب ورق الاستكرات الجاهز مقاس <span className="text-white font-black underline">GS-1021</span>. 
-               تحتوي كل ورقة على 21 ملصقاً (3 أعمدة × 7 صفوف).
+               تم تحسين القوالب لتكون باللون الأسود الصريح لضمان وضوح الأرقام والشعار عند الطباعة على ورق <span className="text-white font-black underline">GS-1021</span>.
              </p>
              <div className="flex items-center gap-3 bg-white/5 p-4 rounded-2xl border border-white/10 w-fit">
                 <Info size={18} className="text-blue-400" />
-                <span className="text-xs font-black">إجمالي اللجان المسجلة: {uniqueCommittees.length} لجنة</span>
+                <span className="text-xs font-black">عدد اللجان: {uniqueCommittees.length} | الورق المطلوب: {pages.length} ورقة</span>
              </div>
           </div>
           <button 
@@ -165,42 +171,42 @@ const CommitteeLabelsPrint: React.FC<Props> = ({ students }) => {
             className="bg-blue-600 text-white px-12 py-6 rounded-[2rem] font-black text-2xl shadow-2xl hover:bg-blue-500 transition-all flex items-center gap-5 active:scale-95 shrink-0 disabled:opacity-50"
           >
             {isPrinting ? <Loader2 size={32} className="animate-spin" /> : <Printer size={32} />} 
-            {isPrinting ? 'جاري تجهيز الأوراق...' : 'بدء الطباعة المباشرة'}
+            {isPrinting ? 'جاري التحضير...' : 'طباعة الآن'}
           </button>
         </div>
       </div>
 
-      {/* المعاينة التفاعلية في الشاشة */}
+      {/* المعاينة في المتصفح */}
       <div className="no-print space-y-6">
          <div className="flex items-center gap-4 border-b pb-4">
             <LayoutGrid className="text-slate-400" />
-            <h4 className="text-xl font-black text-slate-800 uppercase tracking-tight">معاينة صفحات الملصقات قبل الطباعة</h4>
+            <h4 className="text-xl font-black text-slate-800 uppercase tracking-tight">معاينة تخطيط الورق (A4)</h4>
          </div>
          
          {pages.length === 0 ? (
            <div className="bg-white p-20 rounded-[3rem] border-4 border-dashed border-slate-100 text-center flex flex-col items-center gap-6">
               <Tag size={64} className="text-slate-200" />
-              <p className="text-2xl font-black text-slate-300 italic">لا توجد بيانات طلاب لإنشاء ملصقات اللجان</p>
+              <p className="text-2xl font-black text-slate-300 italic">لا توجد بيانات طلاب لإنشاء الملصقات</p>
            </div>
          ) : (
            <div className="space-y-20">
              {pages.map((pageCommittees, pageIdx) => (
                <div key={pageIdx} className="bg-white p-10 rounded-[2rem] shadow-xl border border-slate-100 flex flex-col items-center gap-8">
                   <div className="flex justify-between w-full items-center border-b pb-4 border-dashed">
-                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Label Sheet Preview #{pageIdx + 1}</span>
-                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">GS-1021 Standard (21 Labels)</span>
+                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">صفحة معاينة رقم #{pageIdx + 1}</span>
+                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">معيار GS-1021 (21 ملصق)</span>
                   </div>
                   
-                  <div className="label-sheet-preview grid grid-cols-3 gap-1 border-2 border-slate-100 bg-slate-50 p-2 shadow-inner">
+                  <div className="label-sheet-preview grid grid-cols-3 gap-1 border-2 border-slate-200 bg-slate-50 p-2 shadow-inner">
                      {pageCommittees.map((comNum) => (
-                        <div key={comNum} className="w-[140px] h-[85px] bg-white border border-slate-200 rounded-md flex flex-col items-center justify-center p-2 shadow-sm">
+                        <div key={comNum} className="w-[140px] h-[85px] bg-white border border-slate-300 rounded-md flex flex-col items-center justify-center p-2 shadow-sm">
                            <img 
-                              src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${comNum}`} 
-                              alt="QR" 
-                              className="w-10 h-10 mb-1"
+                              src={APP_CONFIG.LOGO_URL} 
+                              alt="Logo" 
+                              className="w-6 h-6 object-contain mb-1"
                            />
-                           <span className="text-[8px] font-black leading-none mb-0.5">لجنة رقم</span>
-                           <span className="text-lg font-black text-blue-600 leading-none">{comNum}</span>
+                           <span className="text-[8pt] font-black leading-none mb-0.5 text-black">لجنة رقم</span>
+                           <span className="text-2xl font-black text-black leading-none">{comNum}</span>
                         </div>
                      ))}
                   </div>
