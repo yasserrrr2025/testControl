@@ -90,34 +90,6 @@ const ControlManager: React.FC<ControlManagerProps> = ({
     } catch (err: any) { alert(err.message); } finally { setIsResetting(false); }
   };
 
-  const toggleManualJoin = async () => {
-    try {
-      await setSystemConfig({ ...systemConfig, allow_manual_join: !systemConfig.allow_manual_join });
-    } catch (err: any) {
-      alert(err.message);
-    }
-  };
-
-  const handleEmergencyReceipt = async (committeeNum: string, grade: string) => {
-    if (!confirm(`هل أنت متأكد من استلام مظروف (${grade}) للجنة (${committeeNum}) يدوياً؟ سيتم توثيق العملية باسمك.`)) return;
-    try {
-      await setDeliveryLogs({
-        id: crypto.randomUUID(),
-        teacher_name: 'رئيس الكنترول (تجاوز يدوي)',
-        proctor_name: 'تجاوز طوارئ - يدوي',
-        committee_number: committeeNum,
-        grade: grade,
-        type: 'RECEIVE',
-        time: new Date().toISOString(),
-        period: 1,
-        status: 'CONFIRMED'
-      });
-      alert('تم الاستلام والتوثيق بنجاح.');
-    } catch (err: any) {
-      alert('فشل في توثيق الاستلام: ' + err.message);
-    }
-  };
-
   return (
     <div className="space-y-8 animate-fade-in text-right pb-32">
       {/* Header */}
@@ -132,15 +104,10 @@ const ControlManager: React.FC<ControlManagerProps> = ({
                      <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${systemConfig.active_exam_date === new Date().toISOString().split('T')[0] ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white animate-pulse'}`}>
                         اليوم النشط: {systemConfig.active_exam_date}
                      </span>
-                     <span className="text-slate-500 font-bold text-xs flex items-center gap-2"><Clock size={14}/> تحديث لحظي نشط</span>
                   </div>
                </div>
             </div>
-            <button 
-              onClick={handleStartNewDay}
-              disabled={isResetting}
-              className="bg-white text-slate-950 px-8 py-5 rounded-[2rem] font-black text-lg flex items-center gap-4 shadow-2xl hover:bg-blue-50 transition-all active:scale-95 disabled:opacity-50"
-            >
+            <button onClick={handleStartNewDay} disabled={isResetting} className="bg-white text-slate-950 px-8 py-5 rounded-[2rem] font-black text-lg flex items-center gap-4 shadow-2xl hover:bg-blue-50 transition-all active:scale-95 disabled:opacity-50">
                {isResetting ? <RefreshCw className="animate-spin" /> : <CalendarPlus size={28} className="text-blue-600" />}
                بدء يوم عمل جديد
             </button>
@@ -157,11 +124,7 @@ const ControlManager: React.FC<ControlManagerProps> = ({
               {id: 'emergency-receipt', label: 'استلام طوارئ', icon: ShieldAlert},
               {id: 'comms', label: 'البث الإعلامي', icon: Megaphone},
             ].map(tab => (
-              <button 
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex-1 py-4 px-6 rounded-[1.8rem] font-black text-xs flex items-center justify-center gap-3 transition-all ${activeTab === tab.id ? 'bg-slate-900 text-white shadow-xl' : 'text-slate-400 hover:bg-slate-50'}`}
-              >
+              <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`flex-1 py-4 px-6 rounded-[1.8rem] font-black text-xs flex items-center justify-center gap-3 transition-all ${activeTab === tab.id ? 'bg-slate-900 text-white shadow-xl' : 'text-slate-400 hover:bg-slate-50'}`}>
                 <tab.icon size={18} />
                 <span className="whitespace-nowrap">{tab.label}</span>
               </button>
@@ -169,92 +132,71 @@ const ControlManager: React.FC<ControlManagerProps> = ({
          </div>
       </div>
 
-      {/* Proctor Management Tab */}
+      {/* Proctor Management Tab - Enhanced with Replacement System */}
       {activeTab === 'proctors-mgmt' && (
         <div className="space-y-8 animate-slide-up">
            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-              {/* Sidebar: Available Proctors */}
               <div className="lg:col-span-1 bg-slate-950 p-8 rounded-[3.5rem] text-white shadow-2xl border-b-8 border-emerald-500 overflow-hidden relative">
                  <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-3xl"></div>
-                 <h3 className="text-xl font-black mb-6 flex items-center gap-3 text-emerald-400"><UserCheck size={24}/> المتاحون حالياً ({availableProctors.length})</h3>
+                 <h3 className="text-xl font-black mb-6 flex items-center gap-3 text-emerald-400"><UserCheck size={24}/> المتاحون للإحلال ({availableProctors.length})</h3>
                  <div className="space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
-                    {availableProctors.length === 0 ? (
-                       <div className="text-center py-10 opacity-20 italic">لا يوجد مراقبين متاحين حالياً</div>
-                    ) : (
-                       availableProctors.map(u => (
-                          <div key={u.id} className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between group hover:bg-white/10 transition-all">
-                             <div className="text-right">
-                                <p className="font-black text-sm">{u.full_name}</p>
-                                <p className="text-[10px] text-slate-500 font-mono">{u.national_id}</p>
-                             </div>
-                             <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center"><UserCircle size={20}/></div>
+                    {availableProctors.map(u => (
+                       <div key={u.id} className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between group hover:bg-white/10 transition-all">
+                          <div className="text-right">
+                             <p className="font-black text-sm">{u.full_name}</p>
+                             <p className="text-[10px] text-emerald-400 font-black uppercase tracking-tighter">جاهز للاستبدال</p>
                           </div>
-                       ))
-                    )}
+                          <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center"><UserCircle size={20}/></div>
+                       </div>
+                    ))}
                  </div>
               </div>
 
-              {/* Main: Committee Grid with Swap/Assign */}
               <div className="lg:col-span-3 space-y-6">
-                 <div className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 flex justify-between items-center">
-                    <h3 className="text-2xl font-black text-slate-800 flex items-center gap-3"><MonitorPlay className="text-blue-600"/> التوزيع الميداني والتبديل السريع</h3>
-                    <div className="flex gap-4">
-                       <div className="flex items-center gap-2 text-[10px] font-black text-slate-400"><div className="w-2 h-2 rounded-full bg-blue-600"></div> لجنة مؤمنة</div>
-                       <div className="flex items-center gap-2 text-[10px] font-black text-red-500 animate-pulse"><div className="w-2 h-2 rounded-full bg-red-600"></div> لجنة شاغرة</div>
+                 <div className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="flex items-center gap-4">
+                       <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl"><RefreshCcw size={28} /></div>
+                       <h3 className="text-2xl font-black text-slate-800 tracking-tight">نظام تبديل وإحلال المراقبين الذكي</h3>
                     </div>
+                    <p className="text-[10px] font-bold text-slate-400 max-w-xs text-center md:text-right">يسمح هذا النظام بإجراء تبديل فوري في حال خروج مراقب لظرف طارئ مع الحفاظ على البيانات.</p>
                  </div>
 
                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {committeeStatus.map(com => (
-                      <div key={com.num} className={`bg-white p-8 rounded-[3.5rem] border-2 shadow-xl transition-all relative group overflow-hidden ${com.proctor ? 'border-slate-50' : 'border-red-50 bg-red-50/10'}`}>
+                      <div key={com.num} className={`bg-white p-8 rounded-[3.5rem] border-2 shadow-xl transition-all relative group overflow-hidden ${com.proctor ? 'border-slate-50' : 'border-red-100 bg-red-50/10'}`}>
                          <div className="flex justify-between items-start mb-6">
                             <div className="bg-slate-950 text-white w-16 h-16 rounded-2xl flex flex-col items-center justify-center font-black">
-                               <span className="text-[8px] opacity-40 leading-none mb-1">لجنة</span>
+                               <span className="text-[8px] opacity-40 mb-1">لجنة</span>
                                <span className="text-3xl leading-none">{com.num}</span>
                             </div>
-                            <div className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase ${com.proctor ? 'bg-blue-600 text-white' : 'bg-red-600 text-white animate-pulse'}`}>
-                               {com.proctor ? 'قيد المراقبة' : 'شاغرة - خطر'}
-                            </div>
+                            {com.proctor ? (
+                               <div className="bg-blue-600 text-white px-4 py-1.5 rounded-xl text-[10px] font-black uppercase shadow-lg">نشطة ميدانياً</div>
+                            ) : (
+                               <div className="bg-red-600 text-white px-4 py-1.5 rounded-xl text-[10px] font-black uppercase animate-pulse shadow-xl">تحتاج بديل فوراً</div>
+                            )}
                          </div>
 
                          <div className="mb-8 min-h-[60px] flex items-center">
                             {com.proctor ? (
                                <div className="flex items-center gap-4 w-full">
-                                  <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shadow-inner"><UserCircle size={32}/></div>
+                                  <div className="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center shadow-2xl ring-4 ring-slate-50"><UserCheck size={32}/></div>
                                   <div className="min-w-0 flex-1">
-                                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">المراقب الحالي</p>
+                                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">المراقب المكلف</p>
                                      <h4 className="text-lg font-black text-slate-900 truncate leading-tight">{com.proctor.full_name}</h4>
                                   </div>
                                </div>
                             ) : (
-                               <div className="w-full py-4 text-center border-2 border-dashed border-red-200 rounded-2xl text-red-300 font-bold italic text-sm">بانتظار مراقب</div>
+                               <div className="w-full py-4 text-center border-2 border-dashed border-red-200 rounded-2xl text-red-300 font-bold italic text-sm">شاغرة - بانتظار إحلال بديل</div>
                             )}
                          </div>
 
-                         <div className="grid grid-cols-2 gap-3">
-                            {com.proctor ? (
-                               <>
-                                 <button 
-                                   onClick={() => { setTargetCommittee(com.num); setIsAssigning(true); }}
-                                   className="py-4 bg-slate-900 text-white rounded-2xl font-black text-xs flex items-center justify-center gap-2 hover:bg-blue-600 transition-all shadow-lg active:scale-95"
-                                 >
-                                    <ArrowRightLeft size={16}/> تبديل / نقل
-                                 </button>
-                                 <button 
-                                   onClick={() => confirm('هل ترغب في تحرير اللجنة؟ سيتم إخراج المراقب الحالي.') && onRemoveSupervision(com.proctor!.id)}
-                                   className="py-4 bg-red-50 text-red-500 rounded-2xl font-black text-xs flex items-center justify-center gap-2 hover:bg-red-600 hover:text-white transition-all shadow-sm"
-                                 >
-                                    <ShieldX size={16}/> تحرير
-                                 </button>
-                               </>
-                            ) : (
-                               <button 
-                                 onClick={() => { setTargetCommittee(com.num); setIsAssigning(true); }}
-                                 className="col-span-2 py-5 bg-blue-600 text-white rounded-2xl font-black text-sm flex items-center justify-center gap-3 hover:bg-blue-700 transition-all shadow-xl active:scale-95 animate-bounce-subtle"
-                               >
-                                  <Plus size={20}/> إسناد مراقب يدوياً
-                               </button>
-                            )}
+                         <div className="grid grid-cols-1">
+                            <button 
+                              onClick={() => { setTargetCommittee(com.num); setIsAssigning(true); }}
+                              className={`w-full py-5 rounded-2xl font-black text-sm flex items-center justify-center gap-3 transition-all shadow-xl active:scale-95 ${com.proctor ? 'bg-slate-950 text-white hover:bg-blue-600 shadow-blue-200' : 'bg-red-600 text-white hover:bg-red-700 shadow-red-200 animate-bounce-subtle'}`}
+                            >
+                               {com.proctor ? <><ArrowRightLeft size={20}/> إجراء استبدال طارئ</> : <><Plus size={20}/> تعيين بديل فوري</>}
+                            </button>
                          </div>
                       </div>
                     ))}
@@ -264,7 +206,7 @@ const ControlManager: React.FC<ControlManagerProps> = ({
         </div>
       )}
 
-      {/* Assignment Modal */}
+      {/* Assignment/Replacement Modal */}
       {isAssigning && targetCommittee && (
          <div className="fixed inset-0 z-[600] flex items-center justify-center p-4 animate-fade-in no-print overflow-y-auto">
             <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-2xl" onClick={() => setIsAssigning(false)}></div>
@@ -277,8 +219,8 @@ const ControlManager: React.FC<ControlManagerProps> = ({
                         <span className="text-4xl leading-none">{targetCommittee}</span>
                      </div>
                      <div>
-                        <h3 className="text-3xl font-black tracking-tight italic">إسناد / تبديل مراقب</h3>
-                        <p className="text-blue-400 text-[10px] font-black uppercase tracking-[0.3em] mt-1">Manual Field Assignment</p>
+                        <h3 className="text-3xl font-black tracking-tight italic">وحدة الإحلال السريع</h3>
+                        <p className="text-blue-400 text-[10px] font-black uppercase mt-1">Smart Replacement Unit</p>
                      </div>
                   </div>
                   <button onClick={() => setIsAssigning(false)} className="bg-white/10 p-3 rounded-full hover:bg-white/20 transition-all"><X size={32}/></button>
@@ -289,8 +231,8 @@ const ControlManager: React.FC<ControlManagerProps> = ({
                      <Search size={22} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400" />
                      <input 
                         type="text" 
-                        placeholder="ابحث عن اسم المراقب لإسناده..." 
-                        className="w-full pr-14 py-5 bg-slate-50 border-2 border-slate-100 rounded-[2rem] font-black text-lg outline-none focus:border-blue-600"
+                        placeholder="ابحث عن اسم المعلم البديل..." 
+                        className="w-full pr-14 py-5 bg-slate-50 border-2 border-slate-100 rounded-[2rem] font-black text-lg outline-none focus:border-blue-600 shadow-inner"
                         value={proctorSearchInModal}
                         onChange={e => setProctorSearchInModal(e.target.value)}
                      />
@@ -306,7 +248,7 @@ const ControlManager: React.FC<ControlManagerProps> = ({
                              key={u.id} 
                              disabled={isCurrentInThisCom}
                              onClick={async () => {
-                                if (confirm(`هل أنت متأكد من إسناد المراقب (${u.full_name}) للجنة (${targetCommittee})؟${currentSv ? ` سيتم سحبه من لجنته الحالية (${currentSv.committee_number}).` : ''}`)) {
+                                if (confirm(`هل ترغب في تعيين (${u.full_name}) كبديل في اللجنة (${targetCommittee})؟`)) {
                                    await onAssignProctor(u.id, targetCommittee);
                                    setIsAssigning(false);
                                 }
@@ -315,16 +257,16 @@ const ControlManager: React.FC<ControlManagerProps> = ({
                            >
                               <div className="flex items-center gap-6">
                                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner ${currentSv ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                    {currentSv ? <ShieldAlert size={28}/> : <UserCheck size={28}/>}
+                                    {currentSv ? <ArrowRightLeft size={28}/> : <UserCheck size={28}/>}
                                  </div>
                                  <div className="text-right">
-                                    <p className="font-black text-xl text-slate-800">{u.full_name}</p>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase">
-                                       {currentSv ? `مكلف حالياً باللجنة: ${currentSv.committee_number}` : 'مراقب احتياط - جاهز للإسناد'}
+                                    <p className="font-black text-xl text-slate-800 leading-none mb-1">{u.full_name}</p>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                       {currentSv ? `سيتم نقله من لجنة ${currentSv.committee_number}` : 'مراقب احتياط جاهز للبدء'}
                                     </p>
                                  </div>
                               </div>
-                              <ArrowRight className="text-blue-600 opacity-0 group-hover:opacity-100 transition-all rotate-180" size={32}/>
+                              <CheckCircle className="text-blue-600 opacity-0 group-hover:opacity-100 transition-all" size={32}/>
                            </button>
                         );
                      })}
@@ -342,8 +284,8 @@ const ControlManager: React.FC<ControlManagerProps> = ({
                  <div className="flex justify-between items-center mb-8">
                     <h3 className="text-2xl font-black flex items-center gap-3 text-slate-800"><Radio size={24} className="text-blue-600"/> مصفوفة اللجان الحية</h3>
                     <div className="flex gap-4 text-[10px] font-black text-slate-400">
-                       <span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-600"></div> نشطة</span>
-                       <span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-slate-200"></div> شاغرة</span>
+                       <span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-600 shadow-sm shadow-blue-200"></div> نشطة</span>
+                       <span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-slate-200 shadow-sm shadow-slate-200"></div> شاغرة</span>
                     </div>
                  </div>
                  <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-10 gap-3">
@@ -357,26 +299,27 @@ const ControlManager: React.FC<ControlManagerProps> = ({
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div className="bg-white p-8 rounded-[3rem] border shadow-sm flex items-center gap-6">
-                    <div className="bg-emerald-50 text-emerald-600 p-4 rounded-2xl"><CheckCircle2 size={32}/></div>
+                 <div className="bg-white p-8 rounded-[3rem] border shadow-sm flex items-center gap-6 group hover:scale-[1.02] transition-all">
+                    <div className="bg-emerald-50 text-emerald-600 p-4 rounded-2xl group-hover:rotate-6 transition-transform"><CheckCircle2 size={32}/></div>
                     <div>
                        <p className="text-[10px] font-black text-slate-400 uppercase">اللجان المكتملة</p>
-                       <p className="text-3xl font-black text-slate-900">{stats.confirmed} لجنة</p>
+                       <p className="text-3xl font-black text-slate-900 tabular-nums">{stats.confirmed}</p>
                     </div>
                  </div>
-                 <div className="bg-white p-8 rounded-[3rem] border shadow-sm flex items-center gap-6">
-                    <div className="bg-red-50 text-red-600 p-4 rounded-2xl"><UserX size={32}/></div>
+                 <div className="bg-white p-8 rounded-[3rem] border shadow-sm flex items-center gap-6 group hover:scale-[1.02] transition-all">
+                    <div className="bg-red-50 text-red-600 p-4 rounded-2xl group-hover:rotate-6 transition-transform"><UserX size={32}/></div>
                     <div>
                        <p className="text-[10px] font-black text-slate-400 uppercase">إجمالي الغيابات</p>
-                       <p className="text-3xl font-black text-slate-900">{stats.absentTotal} طالب</p>
+                       <p className="text-3xl font-black text-slate-900 tabular-nums">{stats.absentTotal}</p>
                     </div>
                  </div>
               </div>
            </div>
            
-           <div className="bg-slate-950 p-8 rounded-[3.5rem] text-white shadow-xl relative overflow-hidden flex flex-col">
-              <h3 className="text-xl font-black mb-6 flex items-center gap-3 text-blue-400"><History /> العمليات الأخيرة</h3>
-              <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-2">
+           <div className="bg-slate-950 p-8 rounded-[3.5rem] text-white shadow-xl relative overflow-hidden flex flex-col h-full min-h-[500px]">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/10 blur-3xl"></div>
+              <h3 className="text-xl font-black mb-6 flex items-center gap-3 text-blue-400 relative z-10"><History /> العمليات اللحظية</h3>
+              <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 relative z-10 space-y-4">
                  {deliveryLogs.filter(l => l.status === 'CONFIRMED').slice(-8).map(l => (
                    <div key={l.id} className="p-5 bg-white/5 rounded-2xl border border-white/10 flex flex-col gap-2 group hover:bg-white/10 transition-colors">
                       <div className="flex justify-between items-center">
@@ -397,15 +340,15 @@ const ControlManager: React.FC<ControlManagerProps> = ({
         </div>
       )}
 
-      {/* Other Tabs Content Placeholder */}
+      {/* Assignments Tab */}
       {activeTab === 'assignments' && (
         <div className="space-y-8 animate-slide-up">
            <div className="bg-white p-10 rounded-[3.5rem] border shadow-xl flex flex-col lg:flex-row items-center justify-between gap-8">
               <div className="flex items-center gap-6">
-                 <div className="bg-indigo-50 text-indigo-600 p-5 rounded-3xl"><Layers size={40} /></div>
+                 <div className="bg-indigo-50 text-indigo-600 p-5 rounded-3xl shadow-inner"><Layers size={40} /></div>
                  <div>
                     <h3 className="text-3xl font-black text-slate-900">وحدة إسناد الصلاحيات</h3>
-                    <p className="text-slate-400 font-bold">توزيع الصفوف واللجان على أعضاء الكنترول والمساعدين</p>
+                    <p className="text-slate-400 font-bold italic">توزيع المهام والصفوف على أعضاء الكنترول</p>
                  </div>
               </div>
               <div className="relative w-full lg:w-96">
@@ -429,17 +372,15 @@ const ControlManager: React.FC<ControlManagerProps> = ({
                       </div>
                       <div className="flex-1">
                          <h4 className="text-2xl font-black text-slate-900 leading-tight">{user.full_name}</h4>
-                         <div className="flex items-center gap-4 mt-1 text-xs font-bold text-slate-400">
-                            <span>{ROLES_ARABIC[user.role]}</span>
+                         <div className="flex items-center gap-4 mt-1 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            <span className="bg-slate-100 px-3 py-1 rounded-lg text-slate-800">{ROLES_ARABIC[user.role]}</span>
                             <span>ID: {user.national_id}</span>
                          </div>
                       </div>
                    </div>
 
                    <div className="space-y-4">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-2">
-                        {user.role === 'CONTROL' ? 'تخصيص الصفوف الدراسية للاستلام' : 'تخصيص اللجان للمتابعة الميدانية'}
-                      </p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-2">التخصيص الميداني:</p>
                       <div className="flex flex-wrap gap-2">
                          {user.role === 'CONTROL' ? (
                             Array.from(new Set(students.map(s => s.grade))).sort().map(grade => {
@@ -473,6 +414,36 @@ const ControlManager: React.FC<ControlManagerProps> = ({
         </div>
       )}
 
+      {/* Comms Tab */}
+      {activeTab === 'comms' && (
+        <div className="space-y-8 animate-slide-up">
+           <div className="bg-white p-12 rounded-[4rem] border shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 blur-3xl rounded-full"></div>
+              <h3 className="text-3xl font-black text-slate-900 mb-10 flex items-center gap-4"><Megaphone size={32} className="text-blue-600" /> بث التعليمات والبلاغات</h3>
+              
+              <div className="space-y-8">
+                 <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2 flex items-center gap-2"><Target size={14}/> الجمهور المستهدف</label>
+                    <div className="flex flex-wrap gap-2">
+                       {['ALL', 'PROCTOR', 'CONTROL', 'ASSISTANT_CONTROL', 'COUNSELOR'].map(role => (
+                         <button key={role} onClick={() => setBroadcastTarget(role as any)} className={`px-6 py-3 rounded-2xl font-black text-xs transition-all border-2 ${broadcastTarget === role ? 'bg-slate-900 border-slate-800 text-white shadow-xl' : 'bg-white border-slate-100 text-slate-400 hover:border-blue-200'}`}>
+                           {role === 'ALL' ? 'الكل' : ROLES_ARABIC[role]}
+                         </button>
+                       ))}
+                    </div>
+                 </div>
+                 <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2">نص البلاغ / التعليمات</label>
+                    <textarea value={broadcastMsg} onChange={e => setBroadcastMsg(e.target.value)} placeholder="اكتب التعليمات هنا بوضوح..." className="w-full bg-slate-50 border-2 border-slate-100 rounded-[2.5rem] p-8 font-bold text-lg h-48 outline-none focus:border-blue-600 transition-all shadow-inner resize-none" />
+                 </div>
+                 <button onClick={() => { if(broadcastMsg.trim()) { onBroadcast(broadcastMsg, broadcastTarget); setBroadcastMsg(''); alert('تم بث البلاغ'); } }} disabled={!broadcastMsg.trim()} className="w-full py-8 bg-blue-600 text-white rounded-[2.5rem] font-black text-2xl flex items-center justify-center gap-6 shadow-2xl hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50">
+                    <Send size={32}/> بث التعليمات الآن
+                 </button>
+              </div>
+           </div>
+        </div>
+      )}
+
       {/* Emergency Receipt Tab */}
       {activeTab === 'emergency-receipt' && (
         <div className="space-y-8 animate-slide-up">
@@ -494,113 +465,34 @@ const ControlManager: React.FC<ControlManagerProps> = ({
                 <div key={com.num} className="bg-white p-8 rounded-[3.5rem] border-2 border-slate-50 shadow-xl flex flex-col gap-6 group hover:border-red-600 transition-all">
                    <div className="flex justify-between items-center">
                       <div className="bg-slate-900 text-white w-16 h-16 rounded-2xl flex flex-col items-center justify-center font-black">
-                         <span className="text-[8px] opacity-40 leading-none mb-1">لجنة</span>
+                         <span className="text-[8px] opacity-40 mb-1">لجنة</span>
                          <span className="text-3xl leading-none">{com.num}</span>
                       </div>
-                      <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase ${com.proctor ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-600'}`}>
-                        {com.proctor ? 'قيد المراقبة' : 'شاغرة رقمياً'}
-                      </div>
                    </div>
-
                    <div className="space-y-3">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-1">الصفوف المسجلة في هذه اللجنة:</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-1">الصفوف المسجلة:</p>
                       <div className="flex flex-col gap-2">
-                        {com.grades.length === 0 ? (
-                          <div className="text-xs text-slate-300 italic py-2">لا يوجد طلاب في هذه اللجنة</div>
-                        ) : (
-                          com.grades.map(grade => {
-                            const isAlreadyConfirmed = deliveryLogs.some(l => 
-                              l.committee_number === com.num && 
-                              l.grade === grade && 
-                              l.status === 'CONFIRMED'
-                            );
-                            
-                            return (
-                              <div key={grade} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100 group-hover:bg-white transition-colors">
-                                <span className="font-black text-sm text-slate-700">{grade}</span>
-                                {isAlreadyConfirmed ? (
-                                  <span className="flex items-center gap-1 text-emerald-600 font-black text-[9px] uppercase">
-                                    <CheckCircle2 size={12}/> تم الاستلام
-                                  </span>
-                                ) : (
-                                  <button 
-                                    onClick={() => handleEmergencyReceipt(com.num, grade)}
-                                    className="bg-slate-900 text-white px-4 py-2 rounded-xl font-black text-[10px] flex items-center gap-2 hover:bg-red-600 transition-all active:scale-95"
-                                  >
-                                    <Unlock size={12} /> استلام طوارئ
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          })
-                        )}
+                        {com.grades.map(grade => {
+                           const isAlreadyConfirmed = deliveryLogs.some(l => l.committee_number === com.num && l.grade === grade && l.status === 'CONFIRMED');
+                           return (
+                             <div key={grade} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100 group-hover:bg-white transition-colors">
+                               <span className="font-black text-sm text-slate-700">{grade}</span>
+                               {isAlreadyConfirmed ? (
+                                 <span className="flex items-center gap-1 text-emerald-600 font-black text-[9px] uppercase"><CheckCircle2 size={12}/> تم الاستلام</span>
+                               ) : (
+                                 <button onClick={async () => {
+                                   if (confirm(`استلام لجنة ${com.num} (${grade}) يدوياً؟`)) {
+                                     await setDeliveryLogs({ id: crypto.randomUUID(), teacher_name: 'رئيس الكنترول (يدوي)', proctor_name: 'تجاوز طوارئ', committee_number: com.num, grade, type: 'RECEIVE', time: new Date().toISOString(), period: 1, status: 'CONFIRMED' });
+                                   }
+                                 }} className="bg-slate-900 text-white px-4 py-2 rounded-xl font-black text-[10px] hover:bg-red-600 transition-all active:scale-95">استلام طوارئ</button>
+                               )}
+                             </div>
+                           );
+                        })}
                       </div>
                    </div>
                 </div>
               ))}
-           </div>
-        </div>
-      )}
-
-      {/* Comms Tab Content */}
-      {activeTab === 'comms' && (
-        <div className="space-y-8 animate-slide-up">
-           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2 bg-white p-12 rounded-[4rem] border shadow-2xl relative overflow-hidden">
-                 <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 blur-3xl rounded-full"></div>
-                 <h3 className="text-3xl font-black text-slate-900 mb-10 flex items-center gap-4"><Megaphone size={32} className="text-blue-600" /> إرسال بلاغ أو تعميم مركزي</h3>
-                 
-                 <div className="space-y-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                       <div className="space-y-3">
-                          <label className="text-xs font-black text-slate-400 uppercase tracking-widest mr-2 flex items-center gap-2"><Target size={14}/> الجمهور المستهدف</label>
-                          <div className="flex flex-wrap gap-2">
-                             {['ALL', 'PROCTOR', 'CONTROL', 'ASSISTANT_CONTROL', 'COUNSELOR'].map(role => (
-                               <button 
-                                 key={role} 
-                                 onClick={() => setBroadcastTarget(role as any)} 
-                                 className={`px-6 py-3 rounded-2xl font-black text-xs transition-all border-2 ${broadcastTarget === role ? 'bg-slate-900 border-slate-800 text-white shadow-xl' : 'bg-white border-slate-100 text-slate-400 hover:border-blue-200'}`}
-                               >
-                                 {role === 'ALL' ? 'الكل' : ROLES_ARABIC[role]}
-                               </button>
-                             ))}
-                          </div>
-                       </div>
-                    </div>
-                    <div className="space-y-3">
-                       <label className="text-xs font-black text-slate-400 uppercase tracking-widest mr-2">نص البلاغ / التعليمات</label>
-                       <textarea 
-                          value={broadcastMsg}
-                          onChange={e => setBroadcastMsg(e.target.value)}
-                          placeholder="اكتب التعليمات هنا بوضوح..."
-                          className="w-full bg-slate-50 border-2 border-slate-100 rounded-[2.5rem] p-8 font-bold text-lg h-48 outline-none focus:border-blue-600 focus:bg-white transition-all shadow-inner resize-none"
-                       />
-                    </div>
-                    <button 
-                       onClick={() => {
-                          if (broadcastMsg.trim()) {
-                             onBroadcast(broadcastMsg, broadcastTarget);
-                             setBroadcastMsg('');
-                             alert('تم بث البلاغ بنجاح');
-                          }
-                       }}
-                       disabled={!broadcastMsg.trim()}
-                       className="w-full py-8 bg-blue-600 text-white rounded-[2.5rem] font-black text-2xl flex items-center justify-center gap-6 shadow-2xl hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50"
-                    >
-                       <Send size={32}/> بث التعليمات الآن
-                    </button>
-                 </div>
-              </div>
-              <div className="bg-slate-950 p-10 rounded-[4rem] text-white shadow-2xl flex flex-col gap-8 relative overflow-hidden border-b-8 border-amber-500">
-                 <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 blur-[100px] rounded-full"></div>
-                 <h3 className="text-xl font-black flex items-center gap-3 text-amber-500 relative z-10"><History size={24} /> سجل البث</h3>
-                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 relative z-10 space-y-4">
-                    <div className="p-20 flex flex-col items-center justify-center gap-4 opacity-20">
-                       <Bell size={48} />
-                       <p className="font-black text-xs uppercase tracking-[0.3em]">لا يوجد سجلات حديثة</p>
-                    </div>
-                 </div>
-              </div>
            </div>
         </div>
       )}

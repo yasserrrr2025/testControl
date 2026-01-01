@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { User, Student, Absence, Supervision, ControlRequest, DeliveryLog, SystemConfig } from './types';
+import { User, Student, Absence, Supervision, ControlRequest, DeliveryLog, SystemConfig, CommitteeReport } from './types';
 
 const supabaseUrl = 'https://upfavagxyuwnqmjgiibo.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVwZmF2YWd4eXV3bnFtamdpaWJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0MDQ0OTYsImV4cCI6MjA4MTk4MDQ5Nn0.AxsPO_Vw04aVuoa2KkFS_63OX1lz1yYthzBLLIkotuw';
@@ -16,6 +16,7 @@ const handleError = (error: any, context: string) => {
 };
 
 export const db = {
+  // ... (بقية الكائنات السابقة تبقى كما هي)
   users: {
     getAll: async () => {
       const { data, error } = await supabase.from('users').select('*');
@@ -50,6 +51,18 @@ export const db = {
     delete: async (id: string) => {
       const { error } = await supabase.from('students').delete().eq('id', id);
       handleError(error, "students.delete");
+    }
+  },
+
+  committeeReports: {
+    getAll: async () => {
+      const { data, error } = await supabase.from('committee_reports').select('*').order('created_at', { ascending: false });
+      handleError(error, "committeeReports.getAll");
+      return (data || []) as CommitteeReport[];
+    },
+    upsert: async (report: Partial<CommitteeReport>) => {
+      const { error } = await supabase.from('committee_reports').upsert([report], { onConflict: 'id' });
+      handleError(error, "committeeReports.upsert");
     }
   },
 
@@ -131,13 +144,8 @@ export const db = {
 
   config: {
     get: async () => {
-      try {
-        const { data, error } = await supabase.from('system_config').select('*').maybeSingle();
-        if (error) throw error;
-        return data as SystemConfig;
-      } catch (e) {
-        return null;
-      }
+      const { data, error } = await supabase.from('system_config').select('*').maybeSingle();
+      return data as SystemConfig;
     },
     upsert: async (config: Partial<SystemConfig>) => {
       const { error } = await supabase.from('system_config').upsert([{ ...config, id: 'main_config' }], { onConflict: 'id' });
@@ -145,9 +153,15 @@ export const db = {
     }
   },
 
+  // Fix: Added missing notifications property to the db object to support broadcasting messages.
   notifications: {
-    broadcast: async (text: string, targetRole: string, sender: string) => {
-      const { error } = await supabase.from('notifications').insert([{ text, target_role: targetRole, sender_name: sender }]);
+    broadcast: async (message: string, target: string, sender: string) => {
+      const { error } = await supabase.from('notifications').insert([{
+        message,
+        target,
+        sender,
+        created_at: new Date().toISOString()
+      }]);
       handleError(error, "notifications.broadcast");
     }
   }

@@ -12,16 +12,17 @@ interface Props {
     operations: () => void;
     fullReset: () => void;
   };
+  onAlert: (msg: string, type: any) => void;
 }
 
-const AdminSystemSettings: React.FC<Props> = ({ systemConfig, setSystemConfig, resetFunctions }) => {
+const AdminSystemSettings: React.FC<Props> = ({ systemConfig, setSystemConfig, resetFunctions, onAlert }) => {
   const [tempStartTime, setTempStartTime] = useState(systemConfig.exam_start_time || '08:00');
   const [tempActiveDate, setTempActiveDate] = useState(systemConfig.active_exam_date || new Date().toISOString().split('T')[0]);
   const [isSavingCfg, setIsSavingCfg] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
-  const sqlManualJoinFix = `-- إصلاح وتحديث قاعدة البيانات بالكامل (نسخة الميدان المحدثة)
--- 1. جدول إعدادات النظام (استخدام TEXT للتواريخ لضمان توافق JS)
+  const sqlManualJoinFix = `-- إصلاح وتحديث قاعدة البيانات بالكامل (نسخة الميدان المحدثة V6)
+-- 1. جدول إعدادات النظام
 DROP TABLE IF EXISTS system_config;
 CREATE TABLE system_config (
   id TEXT PRIMARY KEY DEFAULT 'main_config',
@@ -33,27 +34,41 @@ CREATE TABLE system_config (
 
 INSERT INTO system_config (id, active_exam_date) VALUES ('main_config', CURRENT_DATE::text);
 
--- 2. تحديث جدول المستخدمين
+-- 2. جدول التقارير الميدانية التفصيلية
+CREATE TABLE IF NOT EXISTS committee_reports (
+  id UUID PRIMARY KEY,
+  committee_number TEXT NOT NULL,
+  proctor_id UUID NOT NULL,
+  proctor_name TEXT NOT NULL,
+  date TEXT NOT NULL,
+  observations TEXT DEFAULT '',
+  issues TEXT DEFAULT '',
+  resolutions TEXT DEFAULT '',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 3. تحديث جدول المستخدمين
 ALTER TABLE users ADD COLUMN IF NOT EXISTS assigned_committees TEXT[] DEFAULT '{}';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS assigned_grades TEXT[] DEFAULT '{}';
 
--- 3. تحديث جدول الطلاب
+-- 4. تحديث جدول الطلاب
 ALTER TABLE students ADD COLUMN IF NOT EXISTS seating_number TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS committee_number TEXT;
 
--- 4. تحديث جدول التكليفات ليكون التاريخ نصياً للمطابقة السهلة
+-- 5. تحديث جدول التكليفات
 ALTER TABLE supervision ALTER COLUMN date TYPE TEXT;
 
--- 5. تحديث جدول سجلات الاستلام
+-- 6. تحديث جدول سجلات الاستلام
 ALTER TABLE delivery_logs ADD COLUMN IF NOT EXISTS proctor_name TEXT;
 ALTER TABLE delivery_logs ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'PENDING';
 
--- 6. تحديث جدول البلاغات
+-- 7. تحديث جدول البلاغات
 ALTER TABLE control_requests ADD COLUMN IF NOT EXISTS assistant_name TEXT;`;
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopied(id);
+    onAlert('تم نسخ الكود إلى الحافظة', 'success');
     setTimeout(() => setCopied(null), 2000);
   };
 
@@ -64,10 +79,9 @@ ALTER TABLE control_requests ADD COLUMN IF NOT EXISTS assistant_name TEXT;`;
         exam_start_time: tempStartTime,
         active_exam_date: tempActiveDate
       } as any);
-      alert('تم حفظ إعدادات النظام وتحديث التاريخ النشط بنجاح.');
+      onAlert('تم حفظ إعدادات النظام وتحديث التاريخ النشط بنجاح.', 'success');
     } catch (err: any) {
-      console.error(err);
-      alert('خطأ أثناء الحفظ: ' + err.message);
+      onAlert('خطأ أثناء الحفظ: ' + err.message, 'error');
     } finally {
       setIsSavingCfg(false);
     }
@@ -94,7 +108,7 @@ ALTER TABLE control_requests ADD COLUMN IF NOT EXISTS assistant_name TEXT;`;
               {copied === 'sql' ? 'تم النسخ' : 'نسخ الكود'}
             </button>
           </div>
-          <p className="text-sm text-slate-400 leading-relaxed">انسخ الكود التالي ونفذه في SQL Editor داخل Supabase لإصلاح تعارض أنواع البيانات (Date vs Text) وضمان ثبات اللجان.</p>
+          <p className="text-sm text-slate-400 leading-relaxed">انسخ الكود التالي ونفذه في SQL Editor داخل Supabase لدعم ميزة التقارير التفصيلية وإصلاح قواعد البيانات.</p>
           <div className="relative group">
             <pre className="bg-black/50 p-8 rounded-3xl font-mono text-[11px] text-blue-300 border border-white/10 overflow-x-auto text-left dir-ltr custom-scrollbar h-64">
               {sqlManualJoinFix}

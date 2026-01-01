@@ -3,14 +3,15 @@ import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 import { APP_CONFIG } from '../constants';
 import { db } from '../supabase';
-import { ShieldCheck, Globe, Zap, Lock, Download, Smartphone, LayoutGrid, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Globe, Zap, Lock, Download, Smartphone, LayoutGrid, CheckCircle2, X } from 'lucide-react';
 
 interface Props {
   users: User[];
   onLogin: (user: User) => void;
+  onAlert: (msg: string, type: any) => void;
 }
 
-const Login: React.FC<Props> = ({ onLogin }) => {
+const Login: React.FC<Props> = ({ onLogin, onAlert }) => {
   const [loginId, setLoginId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -36,18 +37,22 @@ const Login: React.FC<Props> = ({ onLogin }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const id = loginId.trim();
-    if (!id) return;
+    if (!id) {
+      onAlert('يرجى إدخال رقم الهوية', 'warning');
+      return;
+    }
     
     setIsLoading(true);
     try {
       const user = await db.users.getById(id);
       if (user) {
+        onAlert(`أهلاً بك، ${user.full_name}`, 'success');
         onLogin(user);
       } else {
-        alert('عذراً! رقم الهوية غير مسجل في النظام. يرجى مراجعة إدارة الكنترول.');
+        onAlert('عذراً! رقم الهوية غير مسجل في النظام. يرجى مراجعة إدارة الكنترول.', 'error');
       }
     } catch (err) {
-      alert('خطأ في الاتصال بقاعدة البيانات. تأكد من إعدادات Supabase.');
+      onAlert('خطأ في الاتصال بقاعدة البيانات. تأكد من إعدادات Supabase.', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -102,7 +107,6 @@ const Login: React.FC<Props> = ({ onLogin }) => {
           </button>
         </form>
 
-        {/* Improved Install Prompt UI */}
         {deferredPrompt && (
           <div className="mt-8 animate-bounce-subtle">
             <button 

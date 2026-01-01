@@ -66,12 +66,15 @@ export interface DeliveryLog {
   status?: 'CONFIRMED' | 'PENDING';
 }
 
-export interface BroadcastMessage {
+export interface CommitteeReport {
   id: string;
-  text: string;
-  targetRole: UserRole | 'ALL';
-  sender: string;
-  time: string;
+  committee_number: string;
+  proctor_id: string;
+  proctor_name: string;
+  date: string;
+  observations: string;
+  issues: string;
+  resolutions: string;
 }
 
 export interface SystemConfig {
