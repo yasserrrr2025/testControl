@@ -9,7 +9,7 @@ import {
   FileText, UserCog, Pencil, Stethoscope, MessageSquare,
   ChevronRight, Users, Check, AlertCircle, Award,
   Sparkles, CheckCircle, Info, X, UserSearch, AlertTriangle,
-  ArrowRight, Timer, UserCheck, Bell
+  ArrowRight, Timer, UserCheck, Bell, Package
 } from 'lucide-react';
 import { db } from '../../supabase';
 import { APP_CONFIG, ROLES_ARABIC } from '../../constants';
@@ -78,16 +78,16 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({
       .sort((a, b) => b.time.localeCompare(a.time)),
   [controlRequests, user.full_name, activeCommittee]);
 
+  // منطق الإغلاق: اللجنة منتهية إذا كان هناك سجل (سواء معلق أو مؤكد) لجميع صفوف اللجنة
   const isCommitteeFinished = useMemo(() => {
     if (!activeCommittee) return false;
     const committeeGrades = Array.from(new Set(students.filter(s => s.committee_number === activeCommittee).map(s => s.grade)));
-    const confirmedGrades = deliveryLogs.filter(l => 
+    const reportedGrades = deliveryLogs.filter(l => 
       l.committee_number === activeCommittee && 
-      l.time.startsWith(activeDate) &&
-      l.status === 'CONFIRMED'
+      l.time.startsWith(activeDate)
     ).map(l => l.grade);
     
-    return committeeGrades.length > 0 && committeeGrades.every(g => confirmedGrades.includes(g));
+    return committeeGrades.length > 0 && committeeGrades.every(g => reportedGrades.includes(g));
   }, [deliveryLogs, activeCommittee, activeDate, students]);
 
   useEffect(() => {
@@ -192,7 +192,7 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({
     const input = closingCounts[currentGrade] || 0;
 
     if (input !== expected) {
-      setCountError(`العدد المدخل (${input}) غير مطابق لإجمالي طلاب اللجنة (${expected}). يرجى إعادة العد بدقة.`);
+      setCountError(`العدد المدخل (${input}) غير مطابق للمسجل (${expected}). تأكد من العد جيداً.`);
       setIsCountingLocked(true);
       return;
     }
@@ -237,11 +237,12 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({
     );
   }
 
-  // واجهة النجاح والقفل (وثيقة الإنجاز الفاخرة)
+  // واجهة النجاح والقفل (وثيقة الإنجاز + سجل المطابقة)
   if (isCommitteeFinished) {
     const myLogs = deliveryLogs.filter(l => l.committee_number === activeCommittee && l.time.startsWith(activeDate));
     return (
       <div className="max-w-4xl mx-auto py-12 px-6 animate-fade-in pb-48 space-y-12">
+          {/* وثيقة الإنجاز */}
           <div className="relative group">
             <div className="absolute -inset-1 bg-gradient-to-r from-emerald-600 to-blue-600 rounded-[5rem] blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
             <div className="relative bg-white rounded-[4.5rem] p-12 text-center shadow-2xl overflow-hidden border border-slate-100">
@@ -255,21 +256,22 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({
                     <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-600 px-6 py-2 rounded-full font-black text-xs uppercase tracking-widest border border-emerald-100 mb-2">
                        <ShieldCheck size={16}/> وثيقة إنجاز ميداني
                     </div>
-                    <h2 className="text-5xl font-black text-slate-900 tracking-tighter">اللجنة {activeCommittee} مكتملة</h2>
-                    <p className="text-slate-500 font-bold text-xl italic max-w-md mx-auto leading-relaxed">أستاذ {user.full_name}، لقد أتممت أعمالك بنجاح. تم توثيق استلام كافة المظاريف من قبل الكنترول.</p>
+                    <h2 className="text-5xl font-black text-slate-900 tracking-tighter">اللجنة {activeCommittee} منتهية</h2>
+                    <p className="text-slate-500 font-bold text-xl italic max-w-md mx-auto leading-relaxed">أستاذ {user.full_name}، تم إرسال البيانات للكنترول بنجاح. يرجى مطابقة المظاريف يدوياً الآن.</p>
                 </div>
               </div>
             </div>
           </div>
 
+          {/* سجل مطابقة المظاريف المسلمة */}
           <div className="space-y-6">
              <div className="flex items-center justify-between px-6">
                 <h3 className="text-2xl font-black text-slate-900 flex items-center gap-4">
-                  <History className="text-blue-600" size={32}/> سجل مطابقة المظاريف المسلمة
+                  <History className="text-blue-600" size={32}/> سجل مطابقة المظاريف
                 </h3>
              </div>
              <div className="grid grid-cols-1 gap-6">
-                {myLogs.filter(l => l.status === 'CONFIRMED').map((log) => {
+                {myLogs.map((log) => {
                   const totalGrade = students.filter(s => s.committee_number === activeCommittee && s.grade === log.grade).length;
                   const comAbsences = absences.filter(a => a.committee_number === activeCommittee && a.date.startsWith(activeDate) && students.find(s => s.national_id === a.student_id)?.grade === log.grade);
                   const absCount = comAbsences.filter(a => a.type === 'ABSENT').length;
@@ -278,11 +280,15 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({
                   return (
                     <div key={log.id} className="bg-white p-8 rounded-[3.5rem] shadow-xl border-2 border-slate-50 flex flex-col md:flex-row justify-between items-center gap-8 transition-all hover:bg-slate-50 group">
                        <div className="flex items-center gap-6 flex-1 w-full md:w-auto">
-                          <div className="w-20 h-20 bg-emerald-600 text-white rounded-[1.8rem] flex items-center justify-center shadow-lg shrink-0"><PackageCheck size={36}/></div>
+                          <div className={`w-20 h-20 rounded-[1.8rem] flex items-center justify-center shadow-lg shrink-0 ${log.status === 'CONFIRMED' ? 'bg-emerald-600 text-white' : 'bg-orange-500 text-white animate-pulse'}`}>
+                             {log.status === 'CONFIRMED' ? <PackageCheck size={36}/> : <Package size={36}/>}
+                          </div>
                           <div className="flex-1">
                              <div className="flex items-center gap-4 mb-1">
                                 <h4 className="text-3xl font-black text-slate-900">{log.grade}</h4>
-                                <span className="bg-emerald-500 text-white px-4 py-1 rounded-lg font-black text-[9px] uppercase tracking-widest">مستلم نظامياً</span>
+                                <span className={`px-4 py-1 rounded-lg font-black text-[9px] uppercase tracking-widest ${log.status === 'CONFIRMED' ? 'bg-emerald-500 text-white' : 'bg-orange-500 text-white'}`}>
+                                   {log.status === 'CONFIRMED' ? 'مستلم نظامياً' : 'متجه للكنترول'}
+                                </span>
                              </div>
                              <div className="flex flex-wrap gap-2">
                                 <span className="bg-slate-100 text-slate-500 px-3 py-1 rounded-lg text-[10px] font-black">إجمالي: {totalGrade}</span>
@@ -295,8 +301,8 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({
                        
                        <div className="flex items-center gap-6 border-t md:border-t-0 md:border-r border-slate-100 pt-6 md:pt-0 md:pr-10 w-full md:w-auto justify-between md:justify-end">
                           <div className="text-right">
-                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">المستلم (الكنترول)</p>
-                             <p className="text-sm font-black text-slate-700">{log.teacher_name}</p>
+                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">المستلم</p>
+                             <p className="text-sm font-black text-slate-700">{log.status === 'CONFIRMED' ? log.teacher_name : '---'}</p>
                           </div>
                           <div className="text-center">
                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">الوقت</p>
@@ -390,12 +396,12 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({
           </div>
        </div>
 
-       {/* SOS Live Tracker Card - كارت متابعة البلاغات الحي */}
+       {/* تتبع البلاغات النشطة */}
        {myActiveRequests.length > 0 && (
          <div className="bg-white p-8 rounded-[3.5rem] shadow-2xl border-2 border-red-50 animate-bounce-subtle">
             <div className="flex items-center gap-4 mb-6 pb-4 border-b border-red-50">
                <div className="bg-red-600 p-2 rounded-xl text-white shadow-lg"><Bell size={20} className="animate-pulse" /></div>
-               <h3 className="text-xl font-black text-slate-900">تتبع البلاغات النشطة ({myActiveRequests.length})</h3>
+               <h3 className="text-xl font-black text-slate-900">تتبع البلاغات الميدانية ({myActiveRequests.length})</h3>
             </div>
             <div className="space-y-4">
                {myActiveRequests.map(req => (
@@ -519,6 +525,7 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({
                            <h4 className="text-xl font-black text-slate-800">اختر المعلم المراد استدعاؤه:</h4>
                         </div>
                         <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                           {/* جلب كافة المعلمين باستثناء الإداريين */}
                            {users.filter(u => u.id !== user.id).map(u => (
                              <button key={u.id} onClick={() => setOtherText(u.full_name)} className={`p-4 rounded-2xl flex items-center justify-between border-2 transition-all ${otherText === u.full_name ? 'bg-purple-50 border-purple-600' : 'bg-slate-50 border-slate-100'}`}>
                                 <div className="text-right">
