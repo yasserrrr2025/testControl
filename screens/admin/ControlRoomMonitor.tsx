@@ -49,16 +49,31 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
 
   const committeeGrid = useMemo(() => {
     const comNums = Array.from(new Set(students.map(s => s.committee_number))).filter(Boolean).sort((a: any, b: any) => Number(a) - Number(b));
+    
     return comNums.map(num => {
-      const isDone = deliveryLogs.some(l => l.committee_number === num && l.status === 'CONFIRMED');
-      const isSubmitted = deliveryLogs.some(l => l.committee_number === num && l.status === 'PENDING');
+      // جلب الصفوف المتوقعة لهذه اللجنة
+      const committeeGrades = Array.from(new Set(students.filter(s => s.committee_number === num).map(s => s.grade)));
+      
+      // جلب سجلات الاستلام لهذه اللجنة اليوم
+      const committeeLogs = deliveryLogs.filter(l => l.committee_number === num && l.time.startsWith(activeDate));
+      
+      // اللجنة مكتملة (أخضر) إذا كان كل الصفوف مسجلة كـ CONFIRMED
+      const isDone = committeeGrades.length > 0 && committeeGrades.every(g => 
+        committeeLogs.some(l => l.grade === g && l.status === 'CONFIRMED')
+      );
+
+      // اللجنة "متجهة للكنترول" (برتقالي) إذا كانت منتهية ميدانياً (PENDING) ولكن لم تكتمل مطابقتها بعد
+      const isSubmitted = !isDone && committeeGrades.length > 0 && committeeGrades.every(g => 
+        committeeLogs.some(l => l.grade === g)
+      );
+
       const hasAlert = requests.some(r => r.committee === num && r.status === 'PENDING');
       const inProgress = requests.some(r => r.committee === num && r.status === 'IN_PROGRESS');
       const isOccupied = supervisions.some(s => s.committee_number === num);
 
       return { num, isDone, isSubmitted, hasAlert, inProgress, isOccupied };
     });
-  }, [students, deliveryLogs, requests, supervisions]);
+  }, [students, deliveryLogs, requests, supervisions, activeDate]);
 
   const sortedRequests = useMemo(() => {
     return [...requests].sort((a, b) => b.time.localeCompare(a.time));
@@ -93,7 +108,7 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
          <div className={`grid ${isFull ? 'grid-cols-8 md:grid-cols-10 lg:grid-cols-12' : 'grid-cols-6 md:grid-cols-8 lg:grid-cols-9'} gap-4 p-2`}>
             {committeeGrid.map(c => (
               <div key={c.num} className={`
-                aspect-square rounded-[2rem] border-2 flex flex-col items-center justify-center transition-all duration-700 relative
+                aspect-square rounded-[2rem] border-2 flex flex-col items-center justify-center transition-all duration-700 relative overflow-hidden
                 ${c.isDone ? 'bg-emerald-600 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)]' : 
                   c.hasAlert ? 'bg-red-600 border-red-400 shadow-[0_0_40px_rgba(220,38,38,0.5)] animate-pulse scale-110 z-20' : 
                   c.isSubmitted ? 'bg-orange-500 border-orange-300 shadow-[0_0_30px_rgba(249,115,22,0.6)] animate-pulse scale-105' :
@@ -101,9 +116,14 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
                   c.isOccupied ? 'bg-blue-600/20 border-blue-500/30' : 
                   'bg-white/5 border-white/5 opacity-20'}
               `}>
+                {c.isSubmitted && (
+                   <div className="absolute inset-0 flex items-center justify-center opacity-10">
+                      <Truck size={60} className="-rotate-12" />
+                   </div>
+                )}
                 {c.isSubmitted && <Truck size={12} className="absolute top-2 right-2 text-white animate-bounce" />}
-                <span className="text-[8px] font-black opacity-40 uppercase">لجنة</span>
-                <span className={`${isFull ? 'text-4xl' : 'text-3xl'} font-black tabular-nums tracking-tighter`}>{c.num}</span>
+                <span className="text-[8px] font-black opacity-40 uppercase relative z-10">لجنة</span>
+                <span className={`${isFull ? 'text-4xl' : 'text-3xl'} font-black tabular-nums tracking-tighter relative z-10`}>{c.num}</span>
               </div>
             ))}
          </div>
