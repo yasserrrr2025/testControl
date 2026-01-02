@@ -7,7 +7,7 @@ import {
   Clock, CheckCircle2, Radio, Bell, Signal,
   MapPin, Users, Zap, X, AlertCircle, ChevronDown,
   ArrowDownToLine, Flame, Maximize2, Minimize2, MoveRight,
-  MonitorPlay, LayoutPanelTop
+  MonitorPlay, LayoutPanelTop, Truck
 } from 'lucide-react';
 import { Supervision, Absence, DeliveryLog, User, Student, ControlRequest } from '../../types';
 
@@ -68,7 +68,6 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
     setMaximizedPanel(maximizedPanel === panel ? null : panel);
   };
 
-  // المكونات الفرعية معرفة داخلياً لسهولة الوصول للحالات
   const MapPanel = ({ isFull = false }) => (
     <div className={`bg-white/[0.02] border border-white/5 rounded-[3.5rem] p-8 flex flex-col shadow-inner transition-all duration-500 ${isFull ? 'h-full' : 'h-[55%]'}`}>
       <div className="flex items-center justify-between mb-8">
@@ -102,6 +101,7 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
                   c.isOccupied ? 'bg-blue-600/20 border-blue-500/30' : 
                   'bg-white/5 border-white/5 opacity-20'}
               `}>
+                {c.isSubmitted && <Truck size={12} className="absolute top-2 right-2 text-white animate-bounce" />}
                 <span className="text-[8px] font-black opacity-40 uppercase">لجنة</span>
                 <span className={`${isFull ? 'text-4xl' : 'text-3xl'} font-black tabular-nums tracking-tighter`}>{c.num}</span>
               </div>
@@ -200,8 +200,6 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
 
   return (
     <div className="fixed inset-0 bg-[#020617] text-white overflow-hidden font-['Tajawal'] z-[100] flex flex-col p-4 dir-rtl text-right">
-      
-      {/* HEADER SECTION */}
       <div className="flex justify-between items-center h-24 mb-4 border-b border-white/5 pb-4">
         <div className="bg-white/[0.03] border border-white/10 rounded-[2rem] px-8 py-3 flex items-center gap-6 shadow-2xl backdrop-blur-md">
            <MonitorPlay className="text-blue-500" size={32} />
@@ -209,7 +207,6 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
               {currentTime.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/[صم]/, '')}
            </div>
         </div>
-
         <div className="flex-1 flex flex-col items-center justify-center">
            <div className="flex items-center gap-6">
               <span className="text-4xl font-black text-white">{stats.progress}%</span>
@@ -219,7 +216,6 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
            </div>
            <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] mt-2">معدل الإنجاز الميداني النشط</p>
         </div>
-
         <div className="flex items-center gap-6">
            <div className="text-right">
               <span className="bg-emerald-400/10 text-emerald-400 px-6 py-2 rounded-full border border-emerald-400/20 text-[10px] font-black flex items-center gap-3">
@@ -229,11 +225,7 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
            </div>
         </div>
       </div>
-
-      {/* MAIN CONTENT AREA */}
       <div className="flex-1 grid grid-cols-12 gap-6 overflow-hidden">
-        
-        {/* --- LEFT SIDEBAR (FIXED STATS) --- */}
         <div className="col-span-3 flex flex-col gap-6 overflow-hidden">
           <div className="grid grid-cols-1 gap-4">
              {[
@@ -251,48 +243,12 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
                 </div>
              ))}
           </div>
-
-          {/* لوحة البلاغات تظهر هنا فقط إذا لم تكن مكبرة في اليمين */}
           {maximizedPanel !== 'REPORTS' && <ReportsPanel />}
-          {maximizedPanel === 'REPORTS' && (
-             <div className="flex-1 flex flex-col items-center justify-center bg-white/[0.01] border-2 border-dashed border-white/5 rounded-[3.5rem] text-slate-700">
-                <ShieldAlert size={80} className="opacity-10 mb-4" />
-                <p className="font-black italic text-sm text-center px-4">بلاغات العمليات معروضة في القسم الرئيسي حالياً</p>
-             </div>
-          )}
         </div>
-
-        {/* --- RIGHT CONTENT AREA (DYNAMIC) --- */}
         <div className="col-span-9 flex flex-col gap-6 overflow-hidden">
-          {maximizedPanel === 'MAP' ? (
-             <MapPanel isFull />
-          ) : maximizedPanel === 'ABSENCES' ? (
-             <AbsencesPanel isFull />
-          ) : maximizedPanel === 'REPORTS' ? (
-             <ReportsPanel isFull />
-          ) : (
-             <>
-               <MapPanel />
-               <AbsencesPanel />
-             </>
-          )}
+          {maximizedPanel === 'MAP' ? <MapPanel isFull /> : maximizedPanel === 'ABSENCES' ? <AbsencesPanel isFull /> : maximizedPanel === 'REPORTS' ? <ReportsPanel isFull /> : <><MapPanel /><AbsencesPanel /></>}
         </div>
-
       </div>
-
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.05); border-radius: 10px; }
-        
-        @keyframes bounce-right {
-          0%, 100% { transform: translateX(0); }
-          50% { transform: translateX(5px); }
-        }
-        .animate-bounce-right {
-          animation: bounce-right 1s infinite;
-        }
-      `}</style>
     </div>
   );
 };

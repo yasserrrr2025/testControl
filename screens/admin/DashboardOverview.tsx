@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { GraduationCap, UserCheck, AlertCircle, Users, ArrowUpRight, Send, Radio, Activity, Search, ShieldAlert, Timer, UserX, Clock, UserCircle, CheckCircle2, AlertTriangle, PackageCheck, Bookmark, Info, ShieldCheck, Map } from 'lucide-react';
+import { GraduationCap, UserCheck, AlertCircle, Users, ArrowUpRight, Send, Radio, Activity, Search, ShieldAlert, Timer, UserX, Clock, UserCircle, CheckCircle2, AlertTriangle, PackageCheck, Bookmark, Info, ShieldCheck, Map, Truck } from 'lucide-react';
 import { Supervision, Absence, DeliveryLog, User, Student, UserRole, SystemConfig } from '../../types';
 import { ROLES_ARABIC } from '../../constants';
 
@@ -21,7 +21,7 @@ interface CommitteeStatus {
   absences: number;
   lates: number;
   totalStudents: number;
-  status: 'IDLE' | 'ACTIVE' | 'PROBLEM' | 'DONE';
+  status: 'IDLE' | 'ACTIVE' | 'PROBLEM' | 'DONE' | 'SUBMITTED';
   isAnomaly: boolean;
   receivedGrades: { grade: string, receiver: string }[];
 }
@@ -62,7 +62,7 @@ const AdminDashboardOverview = ({
     const [startHour, startMin] = (systemConfig.exam_start_time || '08:00').split(':').map(Number);
     const examStartTimeDate = new Date();
     examStartTimeDate.setHours(startHour, startMin, 0);
-    const isAfterGrace = now > new Date(examStartTimeDate.getTime() + 5 * 60 * 1000);
+    const isAfterGrace = now > new Date(examStartTimeDate.getTime() + 10 * 60 * 1000);
 
     return committeeNums.map(num => {
       const sv = supervisions.find((s: Supervision) => s.committee_number === num);
@@ -71,17 +71,27 @@ const AdminDashboardOverview = ({
       const committeeAbsences = absences.filter((a: Absence) => a.committee_number === num && a.type === 'ABSENT');
       const committeeLates = absences.filter((a: Absence) => a.committee_number === num && a.type === 'LATE');
       
-      const confirmedLogs = deliveryLogs.filter(l => l.committee_number === num && l.status === 'CONFIRMED');
+      const allLogs = deliveryLogs.filter(l => l.committee_number === num);
+      const confirmedLogs = allLogs.filter(l => l.status === 'CONFIRMED');
+      const pendingLogs = allLogs.filter(l => l.status === 'PENDING');
+      
       const receivedGrades = confirmedLogs.map(l => ({ grade: l.grade, receiver: l.teacher_name }));
       
-      let status: 'IDLE' | 'ACTIVE' | 'PROBLEM' | 'DONE' = 'IDLE';
-      if (receivedGrades.length > 0) status = 'DONE';
-      else if (committeeAbsences.length > 0 || committeeLates.length > 0) status = 'PROBLEM';
-      else if (sv) status = 'ACTIVE';
+      let status: 'IDLE' | 'ACTIVE' | 'PROBLEM' | 'DONE' | 'SUBMITTED' = 'IDLE';
+      
+      if (confirmedLogs.length > 0 && confirmedLogs.length >= Array.from(new Set(committeeStudents.map(s => s.grade))).length) {
+        status = 'DONE';
+      } else if (pendingLogs.length > 0) {
+        status = 'SUBMITTED';
+      } else if (committeeAbsences.length > 0 || committeeLates.length > 0) {
+        status = 'PROBLEM';
+      } else if (sv) {
+        status = 'ACTIVE';
+      }
 
       return { 
         num, proctor, absences: committeeAbsences.length, lates: committeeLates.length,
-        totalStudents: committeeStudents.length, status, isAnomaly: isAfterGrace && !sv && status !== 'DONE',
+        totalStudents: committeeStudents.length, status, isAnomaly: isAfterGrace && !sv && status !== 'DONE' && status !== 'SUBMITTED',
         receivedGrades
       };
     });
@@ -97,7 +107,7 @@ const AdminDashboardOverview = ({
         <div>
           <h2 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter">مركز القيادة </h2>
           <p className="text-slate-400 font-bold text-sm italic mt-2 flex items-center gap-2">
-            <Activity size={16} className="text-blue-600 animate-pulse"/> إدارة اللجان والتوثيق المركزي
+            <Activity size={16} className="text-blue-600 animate-pulse"/> إدارة اللجان والتوثيق المركزي المباشر
           </p>
         </div>
         <div className="bg-slate-950 p-1.5 rounded-[2rem] flex items-center gap-1 shadow-2xl">
@@ -110,9 +120,9 @@ const AdminDashboardOverview = ({
       
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
          <StatCard title="إجمالي الطلاب" value={stats.students} icon={<GraduationCap size={24} />} color="border-blue-50" bgColor="bg-blue-600" textColor="text-white" />
-         <StatCard title="لجان نشطة" value={liveCommittees.filter(c => c.status !== 'IDLE' && c.status !== 'DONE').length} icon={<UserCheck size={24} />} color="border-emerald-50" bgColor="bg-emerald-600" textColor="text-white" />
+         <StatCard title="لجان نشطة" value={liveCommittees.filter(c => c.status === 'ACTIVE' || c.status === 'PROBLEM').length} icon={<UserCheck size={24} />} color="border-emerald-50" bgColor="bg-emerald-600" textColor="text-white" />
+         <StatCard title="متجه للكنترول" value={liveCommittees.filter(c => c.status === 'SUBMITTED').length} icon={<Truck size={24} />} color="border-orange-50" bgColor="bg-orange-500" textColor="text-white" />
          <StatCard title="إجمالي الغياب" value={absences.filter(a => a.type === 'ABSENT').length} icon={<UserX size={24} />} color="border-red-50" bgColor="bg-red-600" textColor="text-white" />
-         <StatCard title="لجان منتهية" value={liveCommittees.filter(c => c.status === 'DONE').length} icon={<ShieldAlert size={24} />} color="border-amber-50" bgColor="bg-slate-900" textColor="text-white" />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
@@ -128,7 +138,11 @@ const AdminDashboardOverview = ({
            <div className="bg-slate-50 p-6 rounded-[2.5rem] border-2 border-slate-100 flex flex-wrap gap-6 justify-center shadow-inner text-right">
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded-full bg-emerald-500 shadow-lg shadow-emerald-200"></div>
-                <span className="text-[10px] font-black text-slate-600">مكتملة (تم التسليم)</span>
+                <span className="text-[10px] font-black text-slate-600">مكتملة (تم الاستلام)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded-full bg-orange-500 shadow-lg shadow-orange-200 animate-pulse"></div>
+                <span className="text-[10px] font-black text-slate-600">متجه للكنترول (انتظار مطابقة)</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded-full bg-blue-600 shadow-lg shadow-blue-200"></div>
@@ -157,6 +171,11 @@ const AdminDashboardOverview = ({
                   statusLabel = "تم التسليم للكنترول";
                   statusIcon = <ShieldCheck size={14} />;
                   statusColor = "bg-emerald-500 text-white";
+                } else if (committee.status === 'SUBMITTED') {
+                  cardStyle = "bg-orange-50 border-orange-500 shadow-orange-100 animate-pulse";
+                  statusLabel = "متجه للكنترول";
+                  statusIcon = <Truck size={14} />;
+                  statusColor = "bg-orange-500 text-white";
                 } else if (committee.status === 'PROBLEM') {
                   cardStyle = "bg-rose-50/50 border-rose-400 shadow-rose-100";
                   statusLabel = "تنبيه: رصد حالات";
@@ -171,7 +190,7 @@ const AdminDashboardOverview = ({
 
                 return (
                   <div key={committee.num} className={`p-6 rounded-[3rem] border-2 transition-all flex flex-col gap-4 relative overflow-hidden min-h-[340px] shadow-xl hover:scale-[1.02] ${cardStyle}`}>
-                    <div className={`absolute -top-10 -right-10 w-32 h-32 blur-[60px] opacity-20 ${committee.status === 'DONE' ? 'bg-emerald-500' : committee.status === 'PROBLEM' ? 'bg-rose-500' : 'bg-blue-600'}`}></div>
+                    <div className={`absolute -top-10 -right-10 w-32 h-32 blur-[60px] opacity-20 ${committee.status === 'DONE' ? 'bg-emerald-500' : committee.status === 'SUBMITTED' ? 'bg-orange-500' : committee.status === 'PROBLEM' ? 'bg-rose-500' : 'bg-blue-600'}`}></div>
                     <div className="flex justify-between items-start relative z-10">
                       <div className="flex flex-col">
                           <span className="text-4xl font-black text-slate-950 tracking-tighter">{committee.num}</span>
@@ -199,6 +218,7 @@ const AdminDashboardOverview = ({
                       <div className="grid grid-cols-3 gap-2 flex-1 items-end relative z-10">
                           <div className="bg-white/50 backdrop-blur-sm p-3 rounded-2xl text-center border"><p className="text-[8px] font-black text-slate-400 uppercase mb-1">طلاب</p><p className="text-lg font-black">{committee.totalStudents}</p></div>
                           <div className={`p-3 rounded-2xl text-center border ${committee.absences > 0 ? 'bg-red-500 text-white' : 'bg-white/50 text-slate-400'}`}><p className="text-[8px] font-black uppercase mb-1">غياب</p><p className="text-lg font-black">{committee.absences}</p></div>
+                          <div className={`p-3 rounded-2xl text-center border ${committee.lates > 0 ? 'bg-amber-500 text-white' : 'bg-white/50 text-slate-400'}`}><p className="text-[8px] font-black uppercase mb-1">تأخر</p><p className="text-lg font-black">{committee.lates}</p></div>
                       </div>
                     )}
                   </div>

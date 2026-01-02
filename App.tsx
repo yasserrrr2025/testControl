@@ -16,6 +16,7 @@ import ControlHeadDashboard from './screens/admin/ControlHeadDashboard';
 import ControlManager from './screens/admin/ControlManager';
 import ControlRoomMonitor from './screens/admin/ControlRoomMonitor';
 import ProctorDailyAssignmentFlow from './screens/proctor/DailyAssignmentFlow';
+import ProctorAlertsHistory from './screens/proctor/ProctorAlertsHistory';
 import TeacherBadgeView from './screens/proctor/TeacherBadgeView';
 import CounselorAbsenceMonitor from './screens/counselor/AbsenceMonitor';
 import ControlReceiptView from './screens/control/ReceiptView';
@@ -159,8 +160,9 @@ const App: React.FC = () => {
       case 'paper-logs': return <ControlReceiptView user={currentUser} students={students} absences={absences} deliveryLogs={deliveryLogs} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} supervisions={supervisions} users={users} controlRequests={controlRequests} setControlRequests={fetchData} systemConfig={systemConfig} onAlert={addLocalNotification} />;
       case 'receipt-history': return <ReceiptLogsView deliveryLogs={deliveryLogs} users={users} />;
       case 'digital-id': return <TeacherBadgeView user={currentUser} />;
+      case 'proctor-alerts': return <ProctorAlertsHistory requests={controlRequests} userFullName={currentUser.full_name} />;
       case 'student-absences': return <CounselorAbsenceMonitor absences={absences} students={students} supervisions={supervisions} users={users} />;
-      case 'my-tasks': return <ProctorDailyAssignmentFlow user={currentUser} supervisions={supervisions} setSupervisions={fetchData} students={students} absences={absences} setAbsences={fetchData} deliveryLogs={deliveryLogs} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} sendRequest={async (txt, com) => { await db.controlRequests.insert({ from: currentUser.full_name, committee: com, text: txt, time: new Date().toISOString(), status: 'PENDING' }); await fetchData(); }} controlRequests={controlRequests} systemConfig={systemConfig} committeeReports={committeeReports} onReportUpsert={async (report) => { await db.committeeReports.upsert(report); await fetchData(); }} onAlert={addLocalNotification} />;
+      case 'my-tasks': return <ProctorDailyAssignmentFlow user={currentUser} supervisions={supervisions} setSupervisions={fetchData} students={students} absences={absences} setAbsences={fetchData} deliveryLogs={deliveryLogs} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} sendRequest={async (txt, com) => { await db.controlRequests.insert({ from: currentUser.full_name, committee: com, text: txt, time: new Date().toISOString(), status: 'PENDING' }); await fetchData(); }} controlRequests={controlRequests} users={users} systemConfig={systemConfig} committeeReports={committeeReports} onReportUpsert={async (report) => { await db.committeeReports.upsert(report); await fetchData(); }} onAlert={addLocalNotification} />;
       default: return <div className="p-20 text-center animate-pulse text-slate-400 font-bold">جاري تحميل المحتوى المخصص...</div>;
     }
   };
@@ -215,7 +217,6 @@ const App: React.FC = () => {
               isOpen={isSidebarOpen} 
               setIsOpen={setIsSidebarOpen} 
               isCollapsed={isSidebarCollapsed} 
-              // Fixed the incorrect setter name here
               setIsCollapsed={setIsSidebarCollapsed} 
               controlRequests={controlRequests} 
             />
