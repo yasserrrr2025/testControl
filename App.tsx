@@ -54,21 +54,22 @@ const App: React.FC = () => {
     setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 5000);
   };
 
-  // طلب إذن التنبيهات
   const requestNotificationPermission = async () => {
     if ('Notification' in window) {
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        addLocalNotification('تم تفعيل التنبيهات الذكية بنجاح', 'success');
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          addLocalNotification('تم تفعيل التنبيهات الذكية بنجاح', 'success');
+        }
+      } catch (err) {
+        console.warn("Notification permission request failed", err);
       }
     }
   };
 
-  // معالجة التنبيهات المتقدمة (Push Simulation via System Notifications)
   const triggerSystemNotification = (title: string, body: string) => {
-    if (Notification.permission === 'granted' && document.hidden) {
+    if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
       navigator.serviceWorker.ready.then(registration => {
-        // Fix: Casting to any to allow 'vibrate' property which might not be present in some local TypeScript definitions for NotificationOptions
         registration.showNotification(title, {
           body,
           icon: 'https://www.raed.net/img?id=1488645',
@@ -108,7 +109,6 @@ const App: React.FC = () => {
         setControlRequests(activeRequests);
         setCommitteeReports(reports.filter(r => r.date && r.date.startsWith(filterDate)));
 
-        // تفقد البلاغات الجديدة لإرسال تنبيه نظام
         if (activeRequests.length > 0) {
           const latest = activeRequests[0];
           if (latest.status === 'PENDING' && latest.id !== lastProcessedRequestId) {
@@ -153,12 +153,14 @@ const App: React.FC = () => {
         const user = JSON.parse(savedUser);
         setCurrentUser(user);
         const lastTab = localStorage.getItem('activeTab');
-        setActiveTab(lastTab || (user.role === 'ADMIN' ? 'dashboard' : user.role === 'CONTROL_MANAGER' ? 'head-dash' : 'my-tasks'));
-        requestNotificationPermission(); // اطلب الإذن عند الدخول
-      } catch (e) { localStorage.removeItem('currentUser'); }
+        const defaultTab = user.role === 'ADMIN' ? 'dashboard' : user.role === 'CONTROL_MANAGER' ? 'head-dash' : 'my-tasks';
+        setActiveTab(lastTab || defaultTab);
+      } catch (e) { 
+        localStorage.removeItem('currentUser'); 
+      }
     }
     fetchData();
-    const interval = setInterval(fetchData, 8000); // تسريع المزامنة قليلاً للبلاغات
+    const interval = setInterval(fetchData, 8000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
@@ -173,6 +175,7 @@ const App: React.FC = () => {
     setCurrentUser(null);
     localStorage.removeItem('currentUser');
     localStorage.removeItem('activeTab');
+    setActiveTab('');
   };
 
   const onAssignProctor = async (teacherId: string, committeeNumber: string) => {
@@ -180,7 +183,6 @@ const App: React.FC = () => {
       await db.supervision.deleteByTeacherId(teacherId);
       const existingInCommittee = supervisions.find(s => s.committee_number === committeeNumber);
       if (existingInCommittee) {
-        // إذا وجد مراقب سابق، نقوم بحذفه (أو تحريره) لإحلال الجديد مكانه
         await db.supervision.deleteByTeacherId(existingInCommittee.teacher_id);
       }
       await db.supervision.insert({
@@ -202,7 +204,11 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     if (!currentUser) return null;
-    switch (activeTab) {
+    
+    // حل مشكلة الشاشة البيضاء: إذا لم يكن هناك تبويب محدد، اختر الافتراضي
+    const currentActiveTab = activeTab || (currentUser.role === 'ADMIN' ? 'dashboard' : currentUser.role === 'CONTROL_MANAGER' ? 'head-dash' : 'my-tasks');
+
+    switch (currentActiveTab) {
       case 'dashboard': return <AdminDashboardOverview stats={{ students: students.length, users: users.length, activeSupervisions: supervisions.length }} absences={absences} supervisions={supervisions} users={users} deliveryLogs={deliveryLogs} studentsList={students} onBroadcast={(m, t) => db.notifications.broadcast(m, t, currentUser.full_name)} systemConfig={systemConfig} />;
       case 'head-dash': return <ControlHeadDashboard users={users} students={students} absences={absences} deliveryLogs={deliveryLogs} requests={controlRequests} supervisions={supervisions} systemConfig={systemConfig} onBroadcast={(m, t) => db.notifications.broadcast(m, t, currentUser.full_name)} />;
       case 'control-monitor': return (
@@ -232,9 +238,17 @@ const App: React.FC = () => {
     }
   };
 
+  const handleLoginSuccess = (u: User) => {
+    setCurrentUser(u);
+    localStorage.setItem('currentUser', JSON.stringify(u));
+    // تحديد التبويب الافتراضي فوراً عند تسجيل الدخول
+    const defaultTab = u.role === 'ADMIN' ? 'dashboard' : u.role === 'CONTROL_MANAGER' ? 'head-dash' : 'my-tasks';
+    setActiveTab(defaultTab);
+    localStorage.setItem('activeTab', defaultTab);
+  };
+
   return (
     <div id="app-root" className="min-h-screen bg-[#f8fafc] font-['Tajawal'] overflow-x-hidden text-right" dir="rtl">
-      {/* Toast Notification Hub */}
       <div className="fixed top-24 left-6 right-6 lg:right-auto lg:left-8 z-[1000] flex flex-col gap-3 max-w-sm pointer-events-none no-print">
         {notifications.map(n => (
           <div key={n.id} className={`p-4 rounded-2xl shadow-2xl flex items-center gap-4 animate-slide-in pointer-events-auto border-r-[6px] ${
@@ -271,7 +285,7 @@ const App: React.FC = () => {
         </>
       )}
       <main className={`transition-all duration-300 min-h-screen ${currentUser ? (isSidebarCollapsed ? 'lg:mr-24' : 'lg:mr-80') : ''} ${currentUser ? 'p-6 lg:p-10 pt-24 lg:pt-10' : ''}`}>
-        {currentUser ? renderContent() : <Login users={users} onLogin={(u) => { setCurrentUser(u); localStorage.setItem('currentUser', JSON.stringify(u)); }} {...commonProps} />}
+        {currentUser ? renderContent() : <Login users={users} onLogin={handleLoginSuccess} {...commonProps} />}
       </main>
 
       <style>{`
