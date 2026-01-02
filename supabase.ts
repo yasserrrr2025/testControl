@@ -9,15 +9,10 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 
 const handleError = (error: any, context: string) => {
   if (error) {
-    console.error(`Supabase Error [${context}]:`, error);
-    // استخراج الرسالة بشكل أكثر دقة
-    if (error.message) return error.message;
-    if (typeof error === 'string') return error;
-    try {
-      return JSON.stringify(error);
-    } catch (e) {
-      return "خطأ غير معروف في قاعدة البيانات";
-    }
+    // استخراج الرسالة النصية للخطأ بدقة
+    const message = error.message || error.details || (typeof error === 'string' ? error : JSON.stringify(error));
+    console.error(`Supabase Error [${context}]:`, message);
+    return message;
   }
   return null;
 };
@@ -70,7 +65,8 @@ export const db = {
   committeeReports: {
     getAll: async () => {
       const { data, error } = await supabase.from('committee_reports').select('*').order('created_at', { ascending: false });
-      handleError(error, "committeeReports.getAll");
+      const err = handleError(error, "committeeReports.getAll");
+      if (err) throw new Error(err);
       return (data || []) as CommitteeReport[];
     },
     upsert: async (report: Partial<CommitteeReport>) => {
@@ -83,7 +79,8 @@ export const db = {
   controlRequests: {
     getAll: async () => {
       const { data, error } = await supabase.from('control_requests').select('*').order('id', { ascending: false });
-      handleError(error, "controlRequests.getAll");
+      const err = handleError(error, "controlRequests.getAll");
+      if (err) throw new Error(err);
       return (data || []).map((d: any) => ({
         id: d.id,
         from: d.from_user_name,
@@ -109,14 +106,16 @@ export const db = {
       const updateData: any = { status };
       if (assistantName) updateData.assistant_name = assistantName;
       const { error } = await supabase.from('control_requests').update(updateData).eq('id', id);
-      handleError(error, "controlRequests.updateStatus");
+      const err = handleError(error, "controlRequests.updateStatus");
+      if (err) throw new Error(err);
     }
   },
 
   absences: {
     getAll: async () => {
       const { data, error } = await supabase.from('absences').select('*');
-      handleError(error, "absences.getAll");
+      const err = handleError(error, "absences.getAll");
+      if (err) throw new Error(err);
       return (data || []) as Absence[];
     },
     upsert: async (absence: Partial<Absence>) => {
@@ -126,14 +125,16 @@ export const db = {
     },
     delete: async (studentId: string) => {
       const { error } = await supabase.from('absences').delete().eq('student_id', studentId);
-      handleError(error, "absences.delete");
+      const err = handleError(error, "absences.delete");
+      if (err) throw new Error(err);
     }
   },
 
   supervision: {
     getAll: async () => {
       const { data, error } = await supabase.from('supervision').select('*');
-      handleError(error, "supervision.getAll");
+      const err = handleError(error, "supervision.getAll");
+      if (err) throw new Error(err);
       return (data || []) as Supervision[];
     },
     insert: async (sv: Partial<Supervision>) => {
@@ -143,14 +144,16 @@ export const db = {
     },
     deleteByTeacherId: async (teacherId: string) => {
       const { error } = await supabase.from('supervision').delete().eq('teacher_id', teacherId);
-      handleError(error, "supervision.delete");
+      const err = handleError(error, "supervision.delete");
+      if (err) throw new Error(err);
     }
   },
 
   deliveryLogs: {
     getAll: async () => {
       const { data, error } = await supabase.from('delivery_logs').select('*');
-      handleError(error, "deliveryLogs.getAll");
+      const err = handleError(error, "deliveryLogs.getAll");
+      if (err) throw new Error(err);
       return (data || []) as DeliveryLog[];
     },
     upsert: async (log: Partial<DeliveryLog>) => {
@@ -163,11 +166,13 @@ export const db = {
   config: {
     get: async () => {
       const { data, error } = await supabase.from('system_config').select('*').maybeSingle();
+      handleError(error, "config.get");
       return data as SystemConfig;
     },
     upsert: async (config: Partial<SystemConfig>) => {
       const { error } = await supabase.from('system_config').upsert([{ ...config, id: 'main_config' }], { onConflict: 'id' });
-      handleError(error, "config.upsert");
+      const err = handleError(error, "config.upsert");
+      if (err) throw new Error(err);
     }
   },
 
@@ -179,7 +184,8 @@ export const db = {
         sender,
         created_at: new Date().toISOString()
       }]);
-      handleError(error, "notifications.broadcast");
+      const err = handleError(error, "notifications.broadcast");
+      if (err) throw new Error(err);
     }
   }
 };
