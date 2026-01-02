@@ -26,7 +26,7 @@ import { db, supabase } from './supabase';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState('');
+  const [activeTab, setActiveTab] = useState<string>(localStorage.getItem('activeTab') || '');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [lastProcessedRequestId, setLastProcessedRequestId] = useState<string | null>(null);
@@ -122,39 +122,21 @@ const App: React.FC = () => {
     }
   }, [systemConfig.active_exam_date, lastProcessedRequestId]);
 
-  const runAutoConfirmation = useCallback(async () => {
-    if (!currentUser || !['ADMIN', 'CONTROL', 'CONTROL_MANAGER'].includes(currentUser.role)) return;
-
-    const pendingLogs = deliveryLogs.filter(l => l.status === 'PENDING' && l.type === 'RECEIVE');
-    if (pendingLogs.length === 0) return;
-
-    for (const log of pendingLogs) {
-      const isAuthorized = currentUser.role === 'ADMIN' || currentUser.role === 'CONTROL_MANAGER' || currentUser.assigned_grades?.includes(log.grade);
-      if (!isAuthorized) continue;
-
-      const committeeStudents = students.filter(s => s.committee_number === log.committee_number && s.grade === log.grade);
-      if (committeeStudents.length > 0) {
-        await db.deliveryLogs.upsert({
-          ...log,
-          status: 'CONFIRMED',
-          teacher_name: `تلقائي (${currentUser.full_name})`,
-          time: new Date().toISOString()
-        });
-        addLocalNotification(`تم استلام لجنة ${log.committee_number} (${log.grade}) تلقائياً للمطابقة`, 'success');
-      }
-    }
-    await fetchData();
-  }, [currentUser, deliveryLogs, students, fetchData]);
-
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser');
     if (savedUser) {
       try { 
         const user = JSON.parse(savedUser);
         setCurrentUser(user);
-        const lastTab = localStorage.getItem('activeTab');
-        const defaultTab = user.role === 'ADMIN' ? 'dashboard' : user.role === 'CONTROL_MANAGER' ? 'head-dash' : 'my-tasks';
-        setActiveTab(lastTab || defaultTab);
+        
+        // إذا كان هناك مستخدم ولكن لا يوجد تبويب، حدد الافتراضي فوراً
+        if (!activeTab) {
+          const defaultTab = user.role === 'ADMIN' ? 'dashboard' : 
+                           user.role === 'CONTROL_MANAGER' ? 'head-dash' : 
+                           user.role === 'ASSISTANT_CONTROL' ? 'assigned-requests' : 'my-tasks';
+          setActiveTab(defaultTab);
+          localStorage.setItem('activeTab', defaultTab);
+        }
       } catch (e) { 
         localStorage.removeItem('currentUser'); 
       }
@@ -163,13 +145,6 @@ const App: React.FC = () => {
     const interval = setInterval(fetchData, 8000);
     return () => clearInterval(interval);
   }, [fetchData]);
-
-  useEffect(() => {
-    const isAutoMode = localStorage.getItem('auto_receipt_enabled') === 'true';
-    if (isAutoMode && deliveryLogs.some(l => l.status === 'PENDING')) {
-      runAutoConfirmation();
-    }
-  }, [deliveryLogs, runAutoConfirmation]);
 
   const handleLogout = () => {
     setCurrentUser(null);
@@ -200,15 +175,31 @@ const App: React.FC = () => {
     }
   };
 
+  const handleLoginSuccess = (u: User) => {
+    setCurrentUser(u);
+    localStorage.setItem('currentUser', JSON.stringify(u));
+    
+    // تحديد التبويب الافتراضي فوراً عند تسجيل الدخول لمنع الشاشة البيضاء
+    const defaultTab = u.role === 'ADMIN' ? 'dashboard' : 
+                     u.role === 'CONTROL_MANAGER' ? 'head-dash' : 
+                     u.role === 'ASSISTANT_CONTROL' ? 'assigned-requests' : 'my-tasks';
+    setActiveTab(defaultTab);
+    localStorage.setItem('activeTab', defaultTab);
+  };
+
   const commonProps = { onAlert: addLocalNotification };
 
   const renderContent = () => {
     if (!currentUser) return null;
     
-    // حل مشكلة الشاشة البيضاء: إذا لم يكن هناك تبويب محدد، اختر الافتراضي
-    const currentActiveTab = activeTab || (currentUser.role === 'ADMIN' ? 'dashboard' : currentUser.role === 'CONTROL_MANAGER' ? 'head-dash' : 'my-tasks');
+    // اشتقاق التبويب الحالي مع Fallback ذكي لتجنب الشاشة البيضاء
+    const tabToRender = activeTab || (
+      currentUser.role === 'ADMIN' ? 'dashboard' : 
+      currentUser.role === 'CONTROL_MANAGER' ? 'head-dash' : 
+      currentUser.role === 'ASSISTANT_CONTROL' ? 'assigned-requests' : 'my-tasks'
+    );
 
-    switch (currentActiveTab) {
+    switch (tabToRender) {
       case 'dashboard': return <AdminDashboardOverview stats={{ students: students.length, users: users.length, activeSupervisions: supervisions.length }} absences={absences} supervisions={supervisions} users={users} deliveryLogs={deliveryLogs} studentsList={students} onBroadcast={(m, t) => db.notifications.broadcast(m, t, currentUser.full_name)} systemConfig={systemConfig} />;
       case 'head-dash': return <ControlHeadDashboard users={users} students={students} absences={absences} deliveryLogs={deliveryLogs} requests={controlRequests} supervisions={supervisions} systemConfig={systemConfig} onBroadcast={(m, t) => db.notifications.broadcast(m, t, currentUser.full_name)} />;
       case 'control-monitor': return (
@@ -234,17 +225,10 @@ const App: React.FC = () => {
       case 'digital-id': return <TeacherBadgeView user={currentUser} />;
       case 'student-absences': return <CounselorAbsenceMonitor absences={absences} students={students} supervisions={supervisions} users={users} />;
       case 'my-tasks': return <ProctorDailyAssignmentFlow user={currentUser} supervisions={supervisions} setSupervisions={async () => { await fetchData(); }} students={students} absences={absences} setAbsences={async () => { await fetchData(); }} deliveryLogs={deliveryLogs} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} sendRequest={async (txt, com) => { await db.controlRequests.insert({ from: currentUser.full_name, committee: com, text: txt, time: new Date().toISOString(), status: 'PENDING' }); await fetchData(); }} controlRequests={controlRequests} systemConfig={systemConfig} committeeReports={committeeReports} onReportUpsert={async (report) => { await db.committeeReports.upsert(report); await fetchData(); }} {...commonProps} />;
-      default: return null;
+      default: 
+        // Fallback النهائي لضمان عدم ظهور شاشة بيضاء أبداً
+        return <div className="flex items-center justify-center min-h-[60vh] text-slate-400 font-bold italic animate-pulse">جاري تحميل المحتوى المخصص...</div>;
     }
-  };
-
-  const handleLoginSuccess = (u: User) => {
-    setCurrentUser(u);
-    localStorage.setItem('currentUser', JSON.stringify(u));
-    // تحديد التبويب الافتراضي فوراً عند تسجيل الدخول
-    const defaultTab = u.role === 'ADMIN' ? 'dashboard' : u.role === 'CONTROL_MANAGER' ? 'head-dash' : 'my-tasks';
-    setActiveTab(defaultTab);
-    localStorage.setItem('activeTab', defaultTab);
   };
 
   return (
