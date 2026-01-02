@@ -10,8 +10,14 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 const handleError = (error: any, context: string) => {
   if (error) {
     console.error(`Supabase Error [${context}]:`, error);
-    // تحويل الكائن إلى نص مفهوم لتجنب ظهور [object Object]
-    return typeof error === 'string' ? error : (error.message || JSON.stringify(error));
+    // استخراج الرسالة بشكل أكثر دقة
+    if (error.message) return error.message;
+    if (typeof error === 'string') return error;
+    try {
+      return JSON.stringify(error);
+    } catch (e) {
+      return "خطأ غير معروف في قاعدة البيانات";
+    }
   }
   return null;
 };
@@ -20,40 +26,44 @@ export const db = {
   users: {
     getAll: async () => {
       const { data, error } = await supabase.from('users').select('*');
-      handleError(error, "users.getAll");
+      const err = handleError(error, "users.getAll");
+      if (err) throw new Error(err);
       return (data || []) as User[];
     },
     getById: async (nationalId: string) => {
       const { data, error } = await supabase.from('users').select('*').eq('national_id', nationalId).maybeSingle();
-      if (error) handleError(error, "users.getById");
+      const err = handleError(error, "users.getById");
+      if (err) throw new Error(err);
       return data as User;
     },
     upsert: async (users: any[]) => {
       const { error } = await supabase.from('users').upsert(users, { onConflict: 'national_id' });
-      handleError(error, "users.upsert");
+      const err = handleError(error, "users.upsert");
+      if (err) throw new Error(err);
     },
     delete: async (id: string) => {
       const { error } = await supabase.from('users').delete().eq('id', id);
-      handleError(error, "users.delete");
+      const err = handleError(error, "users.delete");
+      if (err) throw new Error(err);
     }
   },
 
   students: {
     getAll: async () => {
       const { data, error } = await supabase.from('students').select('*');
-      if (error) {
-        const msg = handleError(error, "students.getAll");
-        throw new Error(msg);
-      }
+      const err = handleError(error, "students.getAll");
+      if (err) throw new Error(err);
       return (data || []) as Student[];
     },
     upsert: async (students: any[]) => {
       const { error } = await supabase.from('students').upsert(students, { onConflict: 'national_id' });
-      handleError(error, "students.upsert");
+      const err = handleError(error, "students.upsert");
+      if (err) throw new Error(err);
     },
     delete: async (id: string) => {
       const { error } = await supabase.from('students').delete().eq('id', id);
-      handleError(error, "students.delete");
+      const err = handleError(error, "students.delete");
+      if (err) throw new Error(err);
     }
   },
 
@@ -65,7 +75,8 @@ export const db = {
     },
     upsert: async (report: Partial<CommitteeReport>) => {
       const { error } = await supabase.from('committee_reports').upsert([report], { onConflict: 'id' });
-      handleError(error, "committeeReports.upsert");
+      const err = handleError(error, "committeeReports.upsert");
+      if (err) throw new Error(err);
     }
   },
 
@@ -91,7 +102,8 @@ export const db = {
         time: req.time,
         status: req.status || 'PENDING'
       }]);
-      handleError(error, "controlRequests.insert");
+      const err = handleError(error, "controlRequests.insert");
+      if (err) throw new Error(err);
     },
     updateStatus: async (id: string, status: string, assistantName?: string) => {
       const updateData: any = { status };
@@ -109,7 +121,8 @@ export const db = {
     },
     upsert: async (absence: Partial<Absence>) => {
       const { error } = await supabase.from('absences').upsert([absence], { onConflict: 'student_id' });
-      handleError(error, "absences.upsert");
+      const err = handleError(error, "absences.upsert");
+      if (err) throw new Error(err);
     },
     delete: async (studentId: string) => {
       const { error } = await supabase.from('absences').delete().eq('student_id', studentId);
@@ -125,7 +138,8 @@ export const db = {
     },
     insert: async (sv: Partial<Supervision>) => {
       const { error } = await supabase.from('supervision').insert([sv]);
-      handleError(error, "supervision.insert");
+      const err = handleError(error, "supervision.insert");
+      if (err) throw new Error(err);
     },
     deleteByTeacherId: async (teacherId: string) => {
       const { error } = await supabase.from('supervision').delete().eq('teacher_id', teacherId);
@@ -141,7 +155,8 @@ export const db = {
     },
     upsert: async (log: Partial<DeliveryLog>) => {
       const { error } = await supabase.from('delivery_logs').upsert([log], { onConflict: 'id' });
-      handleError(error, "deliveryLogs.upsert");
+      const err = handleError(error, "deliveryLogs.upsert");
+      if (err) throw new Error(err);
     }
   },
 

@@ -1,30 +1,30 @@
 
-const CACHE_NAME = 'exams-v8';
+const CACHE_NAME = 'exams-v7-cache';
 const ASSETS = [
   '/',
   '/index.html',
   '/manifest.json'
 ];
 
-self.addEventListener('install', (e) => {
-  e.waitUntil(
+self.addEventListener('install', (event) => {
+  event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
   self.skipWaiting();
 });
 
-self.addEventListener('activate', (e) => {
-  e.waitUntil(
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
     caches.keys().then((keys) => Promise.all(
-      keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+      keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
     ))
   );
   self.clients.claim();
 });
 
-self.addEventListener('fetch', (e) => {
-  // استخدام استراتيجية Network First لتجنب عرض بيانات قديمة
-  e.respondWith(
-    fetch(e.request).catch(() => caches.match(e.request))
+self.addEventListener('fetch', (event) => {
+  // استراتيجية Network First لضمان حداثة البيانات مع وجود Fallback للكاش
+  event.respondWith(
+    fetch(event.request).catch(() => caches.match(event.request))
   );
 });
