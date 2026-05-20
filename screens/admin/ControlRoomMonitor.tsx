@@ -1,5 +1,5 @@
 ﻿
-import React, { useMemo, useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { 
   Activity, Monitor, ShieldAlert, Timer, 
   LayoutGrid, PackageCheck, UserX, UserCheck, 
@@ -26,12 +26,25 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
   const [screenMode, setScreenMode] = useState<'split' | 'map' | 'alerts'>('split');
   const [isCompact, setIsCompact] = useState(false);
   const [showTicker, setShowTicker] = useState(true);
+  const [autoRotate, setAutoRotate] = useState(false);
+  const [recentlyChanged, setRecentlyChanged] = useState<Set<string>>(new Set());
+  const previousCommitteeStatus = useRef<Record<string, string>>({});
   const activeDate = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!autoRotate) return;
+    const modes: Array<'split' | 'map' | 'alerts'> = ['split', 'map', 'alerts'];
+    const timer = setInterval(() => {
+      setMaximizedPanel(null);
+      setScreenMode(prev => modes[(modes.indexOf(prev) + 1) % modes.length]);
+    }, 20000);
+    return () => clearInterval(timer);
+  }, [autoRotate]);
 
   const stats = useMemo(() => {
     const totalComs = new Set(students.map(s => s.committee_number)).size;
@@ -73,10 +86,37 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
       const hasAlert = !isSubmitted && !isDone && requests.some(r => r.committee === num && r.status === 'PENDING');
       const inProgress = !isSubmitted && !isDone && requests.some(r => r.committee === num && r.status === 'IN_PROGRESS');
       const isOccupied = supervisions.some(s => s.committee_number === num);
+      const status = isDone ? 'done' : hasAlert ? 'alert' : isSubmitted ? 'submitted' : inProgress ? 'progress' : isOccupied ? 'active' : 'idle';
 
-      return { num, isDone, isSubmitted, hasAlert, inProgress, isOccupied };
+      return { num, isDone, isSubmitted, hasAlert, inProgress, isOccupied, status };
     });
   }, [students, deliveryLogs, requests, supervisions, activeDate]);
+
+  useEffect(() => {
+    const nextStatus = Object.fromEntries(committeeGrid.map(c => [c.num, c.status]));
+    const previous = previousCommitteeStatus.current;
+    if (Object.keys(previous).length === 0) {
+      previousCommitteeStatus.current = nextStatus;
+      return;
+    }
+
+    const changed = committeeGrid
+      .filter(c => previous[c.num] && previous[c.num] !== c.status)
+      .map(c => c.num);
+
+    previousCommitteeStatus.current = nextStatus;
+    if (changed.length === 0) return;
+
+    setRecentlyChanged(prev => new Set([...Array.from(prev), ...changed]));
+    const timer = setTimeout(() => {
+      setRecentlyChanged(prev => {
+        const next = new Set(prev);
+        changed.forEach(num => next.delete(num));
+        return next;
+      });
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [committeeGrid]);
 
   const submittedCommittees = useMemo(() => {
     return new Set(committeeGrid.filter(c => c.isSubmitted || c.isDone).map(c => c.num));
@@ -118,7 +158,7 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
       <div className="flex-1 overflow-y-auto custom-scrollbar">
          <div className={`tv-committee-grid grid ${isFull ? 'grid-cols-8 md:grid-cols-10 lg:grid-cols-12' : isCompact ? 'grid-cols-8 md:grid-cols-10 lg:grid-cols-12' : 'grid-cols-6 md:grid-cols-8 lg:grid-cols-9'} gap-4 p-2`}>
             {committeeGrid.map(c => (
-              <div key={c.num} className={`tv-committee-cell
+              <div key={c.num} className={`tv-committee-cell ${recentlyChanged.has(c.num) ? 'tv-status-pop' : ''}
                 aspect-square rounded-[2rem] border-2 flex flex-col items-center justify-center transition-all duration-700 relative overflow-hidden
                 ${c.isDone ? 'bg-emerald-600 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)]' : 
                   c.hasAlert ? 'bg-red-600 border-red-400 shadow-[0_0_40px_rgba(220,38,38,0.5)] animate-pulse scale-110 z-20' : 
@@ -255,11 +295,15 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
                 { id: 'map', label: 'الخريطة', icon: LayoutGrid },
                 { id: 'alerts', label: 'البلاغات', icon: Bell },
               ].map(item => (
-                <button key={item.id} onClick={() => { setScreenMode(item.id as any); setMaximizedPanel(null); }} className={`px-4 py-3 rounded-2xl text-[10px] font-black flex items-center gap-2 transition-all ${screenMode === item.id ? 'bg-orange-500 text-white shadow-[0_0_24px_rgba(249,115,22,0.35)]' : 'text-slate-400 hover:bg-white/5'}`}>
+                <button key={item.id} onClick={() => { setAutoRotate(false); setScreenMode(item.id as any); setMaximizedPanel(null); }} className={`px-4 py-3 rounded-2xl text-[10px] font-black flex items-center gap-2 transition-all ${screenMode === item.id ? 'bg-orange-500 text-white shadow-[0_0_24px_rgba(249,115,22,0.35)]' : 'text-slate-400 hover:bg-white/5'}`}>
                   <item.icon size={16} />
                   {item.label}
                 </button>
               ))}
+              <button onClick={() => setAutoRotate(v => !v)} className={`px-4 py-3 rounded-2xl text-[10px] font-black flex items-center gap-2 transition-all ${autoRotate ? 'bg-emerald-500 text-white shadow-[0_0_24px_rgba(16,185,129,0.35)]' : 'text-slate-400 hover:bg-white/5'}`}>
+                <Activity size={16} />
+                تلقائي
+              </button>
               <button onClick={() => setIsCompact(v => !v)} className={`px-4 py-3 rounded-2xl text-[10px] font-black transition-all ${isCompact ? 'bg-white text-slate-950' : 'text-slate-400 hover:bg-white/5'}`}>
                 تكثيف
               </button>
@@ -271,6 +315,9 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
               <span className="bg-emerald-400/10 text-emerald-400 px-6 py-2 rounded-full border border-emerald-400/20 text-[10px] font-black flex items-center gap-3">
                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.8)]"></div> البث المباشر نشط
               </span>
+              <button onClick={() => setAutoRotate(v => !v)} className={`tv-auto-toggle mt-2 w-full rounded-full border px-4 py-2 text-[10px] font-black transition-all ${autoRotate ? 'border-emerald-400/30 bg-emerald-400/15 text-emerald-300' : 'border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/10'}`}>
+                {autoRotate ? 'التبديل التلقائي يعمل' : 'تشغيل التبديل التلقائي'}
+              </button>
               <p className="text-slate-300 font-bold text-xs mt-2 mr-2">تاريخ اليوم: {activeDate}</p>
            </div>
         </div>
@@ -417,9 +464,22 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
           font-size: clamp(0.62rem, 0.75vw, 0.9rem);
           letter-spacing: 0;
         }
+        .tv-auto-toggle {
+          white-space: nowrap;
+        }
+        .tv-status-pop {
+          animation: statusPop 2s ease-in-out;
+          z-index: 30;
+        }
         @keyframes orangeFlash {
           0%, 100% { filter: brightness(1); transform: scale(1.03); }
           50% { filter: brightness(1.35); transform: scale(1.09); }
+        }
+        @keyframes statusPop {
+          0% { transform: scale(1); box-shadow: 0 0 0 rgba(255,255,255,0); }
+          12% { transform: scale(1.24); box-shadow: 0 0 42px rgba(255,255,255,0.55); }
+          38% { transform: scale(1.14); }
+          100% { transform: scale(1); }
         }
         @media (min-width: 1500px) {
           .tv-layout {

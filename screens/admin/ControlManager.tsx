@@ -14,9 +14,10 @@ import {
   Radio, CalendarPlus, AlertOctagon, RefreshCw,
   Plus, X, Check, Navigation, Megaphone,
   Bell, Command, Shield, RefreshCcw, ArrowRight, UserCircle,
-  Copy, ExternalLink, Link2
+  Copy, ExternalLink, Link2, Archive, FileDown, ClipboardList, Siren,
+  WifiOff, DatabaseBackup, MessageCircle, Wand2
 } from 'lucide-react';
-import { User, DeliveryLog, Student, UserRole, SystemConfig, Absence, Supervision } from '../../types';
+import { User, DeliveryLog, Student, UserRole, SystemConfig, Absence, Supervision, ControlRequest } from '../../types';
 import { ROLES_ARABIC } from '../../constants';
 import { supabase, db } from '../../supabase';
 
@@ -29,6 +30,7 @@ interface ControlManagerProps {
   systemConfig: SystemConfig & { allow_manual_join?: boolean, active_exam_date?: string };
   absences: Absence[];
   supervisions: Supervision[];
+  requests?: ControlRequest[];
   setDeliveryLogs: (log: DeliveryLog) => Promise<void>;
   setSystemConfig: (cfg: any) => Promise<void>;
   onRemoveSupervision: (teacherId: string) => Promise<void>;
@@ -36,13 +38,15 @@ interface ControlManagerProps {
 }
 
 const ControlManager: React.FC<ControlManagerProps> = ({ 
-  users, deliveryLogs, students, onBroadcast, onUpdateUserGrades, systemConfig, absences, supervisions, setDeliveryLogs, setSystemConfig, onRemoveSupervision, onAssignProctor
+  users, deliveryLogs, students, onBroadcast, onUpdateUserGrades, systemConfig, absences, supervisions, requests = [], setDeliveryLogs, setSystemConfig, onRemoveSupervision, onAssignProctor
 }) => {
-  const [activeTab, setActiveTab] = useState<'cockpit' | 'assignments' | 'emergency-receipt' | 'comms' | 'proctors-mgmt'>('cockpit');
+  const [activeTab, setActiveTab] = useState<'cockpit' | 'ops-center' | 'assignments' | 'emergency-receipt' | 'comms' | 'proctors-mgmt'>('cockpit');
   const [broadcastTarget, setBroadcastTarget] = useState<UserRole | 'ALL'>('ALL');
   const [broadcastMsg, setBroadcastMsg] = useState('');
+  const [broadcastTone, setBroadcastTone] = useState<'INFO' | 'URGENT' | 'REMINDER' | 'THANKS'>('INFO');
   const [isResetting, setIsResetting] = useState(false);
   const [assignmentSearch, setAssignmentSearch] = useState('');
+  const [globalSearch, setGlobalSearch] = useState('');
   
   // States for Assigning/Swapping
   const [isAssigning, setIsAssigning] = useState(false);
@@ -100,6 +104,90 @@ const ControlManager: React.FC<ControlManagerProps> = ({
     } catch {
       window.prompt('انسخ رابط استعلام الطلاب:', studentInquiryUrl);
     }
+  };
+
+  const todayLogs = useMemo(() => deliveryLogs.filter(l => !systemConfig.active_exam_date || l.time?.startsWith(systemConfig.active_exam_date)), [deliveryLogs, systemConfig.active_exam_date]);
+  const pendingRequests = useMemo(() => requests.filter(r => r.status !== 'DONE'), [requests]);
+  const unassignedCommittees = useMemo(() => committeeStatus.filter(c => !c.proctor), [committeeStatus]);
+  const closedWaitingReceipt = useMemo(() => {
+    return committeeStatus.filter(c => {
+      const hasPending = todayLogs.some(l => l.committee_number === c.num && l.status === 'PENDING');
+      const hasConfirmed = todayLogs.some(l => l.committee_number === c.num && l.status === 'CONFIRMED');
+      return hasPending && !hasConfirmed;
+    });
+  }, [committeeStatus, todayLogs]);
+
+  const smartAlerts = useMemo(() => {
+    const alerts: {title: string; text: string; level: 'red' | 'amber' | 'blue'}[] = [];
+    if (unassignedCommittees.length) alerts.push({ title: 'لجان غير مسندة', text: `${unassignedCommittees.length} لجنة تحتاج مراقبًا قبل بداية الاختبار.`, level: 'red' });
+    if (pendingRequests.length) alerts.push({ title: 'بلاغات مفتوحة', text: `${pendingRequests.length} بلاغ يحتاج متابعة أو إغلاق.`, level: 'red' });
+    if (closedWaitingReceipt.length) alerts.push({ title: 'لجان في الطريق', text: `${closedWaitingReceipt.length} لجنة أغلقت ميدانيًا وتنتظر الاستلام في الكنترول.`, level: 'amber' });
+    if (!alerts.length) alerts.push({ title: 'الوضع مستقر', text: 'لا توجد مؤشرات حرجة حاليًا.', level: 'blue' });
+    return alerts;
+  }, [unassignedCommittees, pendingRequests, closedWaitingReceipt]);
+
+  const timeline = useMemo(() => {
+    const items = [
+      ...supervisions.map(s => ({ time: s.date, type: 'دخول مراقب', title: `لجنة ${s.committee_number}`, text: users.find(u => u.id === s.teacher_id)?.full_name || 'مراقب غير معروف' })),
+      ...todayLogs.map(l => ({ time: l.time, type: l.status === 'CONFIRMED' ? 'استلام كنترول' : 'إغلاق ميداني', title: `لجنة ${l.committee_number}`, text: `${l.grade} - ${l.teacher_name}` })),
+      ...absences.map(a => ({ time: a.date, type: a.type === 'ABSENT' ? 'غياب' : 'تأخر', title: `لجنة ${a.committee_number}`, text: a.student_name })),
+      ...requests.map(r => ({ time: r.time, type: r.status === 'DONE' ? 'إغلاق بلاغ' : 'بلاغ', title: `لجنة ${r.committee}`, text: r.text })),
+    ];
+    return items
+      .filter(i => i.time)
+      .sort((a, b) => String(b.time).localeCompare(String(a.time)))
+      .slice(0, 16);
+  }, [supervisions, todayLogs, absences, requests, users]);
+
+  const searchResults = useMemo(() => {
+    const q = globalSearch.trim();
+    if (!q) return [];
+    return [
+      ...students.filter(s => [s.name, s.national_id, s.committee_number, s.seating_number].some(v => String(v || '').includes(q))).slice(0, 6).map(s => ({ type: 'طالب', title: s.name, sub: `هوية ${s.national_id} - لجنة ${s.committee_number}` })),
+      ...users.filter(u => [u.full_name, u.national_id, u.role].some(v => String(v || '').includes(q))).slice(0, 6).map(u => ({ type: 'مستخدم', title: u.full_name, sub: ROLES_ARABIC[u.role] || u.role })),
+      ...requests.filter(r => [r.committee, r.text, r.from].some(v => String(v || '').includes(q))).slice(0, 6).map(r => ({ type: 'بلاغ', title: `لجنة ${r.committee}`, sub: r.text })),
+    ].slice(0, 12);
+  }, [globalSearch, students, users, requests]);
+
+  const performanceStats = useMemo(() => {
+    const closed = new Set(todayLogs.filter(l => l.status === 'PENDING').map(l => l.committee_number)).size;
+    const confirmed = new Set(todayLogs.filter(l => l.status === 'CONFIRMED').map(l => l.committee_number)).size;
+    const requestCommittees = new Set(requests.map(r => r.committee)).size;
+    return [
+      { label: 'لجان نشطة', value: supervisions.length, icon: UserCheck, color: 'bg-blue-50 text-blue-600' },
+      { label: 'في الطريق للكنترول', value: closed, icon: PackageSearch, color: 'bg-orange-50 text-orange-600' },
+      { label: 'مستلمة نهائيًا', value: confirmed, icon: CheckCircle2, color: 'bg-emerald-50 text-emerald-600' },
+      { label: 'لجان بها بلاغات', value: requestCommittees, icon: Siren, color: 'bg-red-50 text-red-600' },
+    ];
+  }, [todayLogs, requests, supervisions]);
+
+  const exportTodayBackup = () => {
+    const payload = { date: systemConfig.active_exam_date, students, users, supervisions, absences, deliveryLogs, requests, exported_at: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `control-backup-${systemConfig.active_exam_date || new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const archiveTodayLocally = () => {
+    const key = `control_archive_${systemConfig.active_exam_date || new Date().toISOString().slice(0,10)}`;
+    localStorage.setItem(key, JSON.stringify({ students, users, supervisions, absences, deliveryLogs, requests, archived_at: new Date().toISOString() }));
+    alert('تم حفظ أرشيف اليوم محليًا على هذا الجهاز.');
+  };
+
+  const broadcastTemplates = [
+    { tone: 'INFO', title: 'تعليمات عامة', msg: 'تنبيه من الكنترول: يرجى الالتزام بالتعليمات الرسمية ومتابعة إشعارات النظام أولًا بأول.' },
+    { tone: 'URGENT', title: 'تنبيه عاجل', msg: 'تنبيه عاجل من الكنترول: يرجى مراجعة البلاغ فورًا واتخاذ الإجراء المطلوب دون تأخير.' },
+    { tone: 'REMINDER', title: 'تذكير بالإغلاق', msg: 'تذكير من الكنترول: بعد انتهاء اللجنة يرجى إنهاء الإغلاق الرقمي والتوجه للتسليم مباشرة.' },
+    { tone: 'THANKS', title: 'شكر وتقدير', msg: 'شكرًا لتعاونكم. يقدّر الكنترول سرعة الاستجابة ودقة الرصد في اللجان.' },
+  ];
+
+  const formatBroadcast = (msg: string) => {
+    const prefix = broadcastTone === 'URGENT' ? 'عاجل من الكنترول' : broadcastTone === 'REMINDER' ? 'تذكير من الكنترول' : broadcastTone === 'THANKS' ? 'رسالة شكر من الكنترول' : 'تنبيه من الكنترول';
+    return `${prefix}: ${msg.trim()}`;
   };
 
   return (
@@ -161,11 +249,40 @@ const ControlManager: React.FC<ControlManagerProps> = ({
         </button>
       </div>
 
+      <div className="bg-white rounded-[3rem] border border-slate-100 shadow-xl p-6">
+        <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_1fr] gap-6">
+          <div className="space-y-4">
+            <div className="relative">
+              <Search size={22} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} placeholder="بحث شامل: طالب، هوية، لجنة، مراقب، بلاغ..." className="w-full bg-slate-50 border-2 border-slate-100 rounded-[2rem] py-5 pr-14 pl-5 font-black outline-none focus:border-blue-500" />
+            </div>
+            {globalSearch && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {searchResults.length ? searchResults.map((r, i) => (
+                  <div key={i} className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <span className="text-[10px] font-black text-blue-600">{r.type}</span>
+                    <p className="font-black text-slate-900 mt-1">{r.title}</p>
+                    <p className="text-xs font-bold text-slate-500 truncate">{r.sub}</p>
+                  </div>
+                )) : <p className="text-center text-slate-400 font-black py-6">لا توجد نتائج مطابقة.</p>}
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <button onClick={exportTodayBackup} className="p-5 rounded-3xl bg-slate-950 text-white text-right shadow-xl hover:bg-blue-700 transition-all"><DatabaseBackup size={26} className="mb-3 text-orange-300" /><p className="font-black">نسخ احتياطي</p><p className="text-[10px] text-slate-400 font-bold mt-1">JSON لبيانات اليوم</p></button>
+            <button onClick={archiveTodayLocally} className="p-5 rounded-3xl bg-orange-500 text-white text-right shadow-xl hover:bg-orange-600 transition-all"><Archive size={26} className="mb-3" /><p className="font-black">أرشفة اليوم</p><p className="text-[10px] text-orange-100 font-bold mt-1">حفظ محلي سريع</p></button>
+            <button onClick={() => setActiveTab('ops-center')} className="p-5 rounded-3xl bg-blue-600 text-white text-right shadow-xl hover:bg-blue-700 transition-all"><ClipboardList size={26} className="mb-3" /><p className="font-black">مركز البلاغات</p><p className="text-[10px] text-blue-100 font-bold mt-1">الأولوية والسجل</p></button>
+            <button onClick={() => { localStorage.setItem('activeTab', 'daily-reports'); window.location.reload(); }} className="p-5 rounded-3xl bg-emerald-600 text-white text-right shadow-xl hover:bg-emerald-700 transition-all"><FileDown size={26} className="mb-3" /><p className="font-black">تقرير نهاية اليوم</p><p className="text-[10px] text-emerald-100 font-bold mt-1">طباعة وتصدير</p></button>
+          </div>
+        </div>
+      </div>
+
       {/* Tabs */}
       <div className="flex justify-center overflow-x-auto pb-4 custom-scrollbar">
          <div className="bg-white p-2 rounded-[2.5rem] shadow-xl border flex gap-2 w-full max-w-6xl shrink-0">
             {[
               {id: 'cockpit', label: 'الرؤية العامة', icon: MonitorPlay},
+              {id: 'ops-center', label: 'مركز العمليات', icon: ClipboardList},
               {id: 'assignments', label: 'إسناد الصلاحيات', icon: Layers},
               {id: 'proctors-mgmt', label: 'إدارة المراقبين', icon: UserCog},
               {id: 'emergency-receipt', label: 'استلام طوارئ', icon: ShieldAlert},
@@ -323,6 +440,84 @@ const ControlManager: React.FC<ControlManagerProps> = ({
          </div>
       )}
 
+      {activeTab === 'ops-center' && (
+        <div className="space-y-8 animate-slide-up">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+            {performanceStats.map(item => (
+              <div key={item.label} className="bg-white rounded-[2.5rem] p-6 border border-slate-100 shadow-xl flex items-center gap-5">
+                <div className={`p-4 rounded-2xl ${item.color}`}><item.icon size={28} /></div>
+                <div>
+                  <p className="text-4xl font-black text-slate-950 tabular-nums">{item.value}</p>
+                  <p className="text-xs font-black text-slate-500 mt-1">{item.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+            <div className="xl:col-span-1 space-y-5">
+              <div className="bg-slate-950 text-white rounded-[3rem] p-7 shadow-2xl">
+                <h3 className="text-2xl font-black mb-5 flex items-center gap-3"><Siren className="text-red-400" /> التنبيهات الذكية</h3>
+                <div className="space-y-3">
+                  {smartAlerts.map((a, i) => (
+                    <div key={i} className={`p-4 rounded-2xl border ${a.level === 'red' ? 'bg-red-500/10 border-red-500/20 text-red-100' : a.level === 'amber' ? 'bg-orange-500/10 border-orange-500/20 text-orange-100' : 'bg-blue-500/10 border-blue-500/20 text-blue-100'}`}>
+                      <p className="font-black">{a.title}</p>
+                      <p className="text-xs font-bold opacity-80 mt-1">{a.text}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-[3rem] p-7 border border-slate-100 shadow-xl">
+                <h3 className="text-xl font-black text-slate-900 mb-5 flex items-center gap-3"><WifiOff className="text-orange-500" /> وضع الطوارئ</h3>
+                <p className="text-sm font-bold text-slate-500 leading-7">عند انقطاع الإنترنت تحفظ شاشة المراقب التغييرات محليًا وتزامنها عند عودة الاتصال. استخدم النسخ الاحتياطي قبل بدء يوم جديد.</p>
+                <button onClick={exportTodayBackup} className="mt-5 w-full bg-slate-950 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2"><FileDown size={18} /> تصدير نسخة الآن</button>
+              </div>
+            </div>
+
+            <div className="xl:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="bg-white rounded-[3rem] p-7 border border-slate-100 shadow-xl min-h-[520px]">
+                <h3 className="text-2xl font-black text-slate-900 mb-6 flex items-center gap-3"><History className="text-blue-600" /> سجل العمليات الزمني</h3>
+                <div className="space-y-4 max-h-[430px] overflow-y-auto custom-scrollbar pr-2">
+                  {timeline.map((item, i) => (
+                    <div key={i} className="flex gap-4">
+                      <div className="w-3 flex flex-col items-center">
+                        <div className="w-3 h-3 rounded-full bg-blue-600 mt-2"></div>
+                        <div className="w-px flex-1 bg-slate-200"></div>
+                      </div>
+                      <div className="flex-1 bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-[10px] font-black text-blue-600">{item.type}</span>
+                          <span className="text-[10px] font-mono text-slate-400">{new Date(item.time).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                        <p className="font-black text-slate-900 mt-1">{item.title}</p>
+                        <p className="text-xs font-bold text-slate-500 truncate">{item.text}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-[3rem] p-7 border border-slate-100 shadow-xl min-h-[520px]">
+                <h3 className="text-2xl font-black text-slate-900 mb-6 flex items-center gap-3"><MessageCircle className="text-red-600" /> مركز البلاغات</h3>
+                <div className="space-y-4 max-h-[430px] overflow-y-auto custom-scrollbar pr-2">
+                  {requests.length ? requests.slice(0, 16).map(req => (
+                    <div key={req.id} className={`p-5 rounded-2xl border ${req.status === 'DONE' ? 'bg-emerald-50 border-emerald-100' : req.status === 'IN_PROGRESS' ? 'bg-blue-50 border-blue-100' : 'bg-red-50 border-red-100'}`}>
+                      <div className="flex items-center justify-between">
+                        <span className="bg-slate-950 text-white px-3 py-1 rounded-xl text-xs font-black">لجنة {req.committee}</span>
+                        <span className="text-[10px] font-black text-slate-500">{req.status === 'DONE' ? 'مغلق' : req.status === 'IN_PROGRESS' ? 'قيد المتابعة' : 'عاجل'}</span>
+                      </div>
+                      <p className="font-black text-slate-900 mt-3 leading-7">{req.text}</p>
+                      <p className="text-xs font-bold text-slate-500 mt-2">{req.from} - {new Date(req.time).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
+                  )) : <p className="text-center text-slate-300 font-black py-20">لا توجد بلاغات مسجلة.</p>}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Cockpit - Overview */}
       {activeTab === 'cockpit' && (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 animate-slide-up">
@@ -464,6 +659,33 @@ const ControlManager: React.FC<ControlManagerProps> = ({
       {/* Comms Tab */}
       {activeTab === 'comms' && (
         <div className="space-y-8 animate-slide-up">
+           <div className="bg-slate-950 text-white p-8 rounded-[3rem] shadow-2xl border border-white/10">
+             <h3 className="text-3xl font-black mb-6 flex items-center gap-3"><Wand2 className="text-orange-300" /> قوالب بث إعلامي محسّنة</h3>
+             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
+               {broadcastTemplates.map(t => (
+                 <button key={t.title} onClick={() => { setBroadcastTone(t.tone as any); setBroadcastMsg(t.msg); }} className="p-4 rounded-2xl bg-white/5 border border-white/10 text-right hover:bg-white/10 transition-all">
+                   <p className="font-black">{t.title}</p>
+                   <p className="text-[10px] font-bold text-slate-400 mt-1 line-clamp-2">{t.msg}</p>
+                 </button>
+               ))}
+             </div>
+             <div className="flex flex-wrap gap-2 mb-6">
+               {[
+                 { id: 'INFO', label: 'معلومة' },
+                 { id: 'URGENT', label: 'عاجل' },
+                 { id: 'REMINDER', label: 'تذكير' },
+                 { id: 'THANKS', label: 'شكر' },
+               ].map(t => (
+                 <button key={t.id} onClick={() => setBroadcastTone(t.id as any)} className={`px-5 py-3 rounded-2xl text-xs font-black border transition-all ${broadcastTone === t.id ? 'bg-orange-500 border-orange-500 text-white' : 'border-white/10 text-slate-400 hover:bg-white/5'}`}>{t.label}</button>
+               ))}
+             </div>
+             {broadcastMsg.trim() && (
+               <div className="p-5 rounded-2xl bg-white/5 border border-white/10">
+                 <p className="text-[10px] font-black text-orange-300 mb-1">معاينة صياغة الرسالة قبل البث</p>
+                 <p className="font-black leading-7">{formatBroadcast(broadcastMsg)}</p>
+               </div>
+             )}
+           </div>
            <div className="bg-white p-12 rounded-[4rem] border shadow-2xl relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 blur-3xl rounded-full"></div>
               <h3 className="text-3xl font-black text-slate-900 mb-10 flex items-center gap-4"><Megaphone size={32} className="text-blue-600" /> بث التعليمات والبلاغات</h3>
@@ -483,7 +705,7 @@ const ControlManager: React.FC<ControlManagerProps> = ({
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2">نص البلاغ / التعليمات</label>
                     <textarea value={broadcastMsg} onChange={e => setBroadcastMsg(e.target.value)} placeholder="اكتب التعليمات هنا بوضوح..." className="w-full bg-slate-50 border-2 border-slate-100 rounded-[2.5rem] p-8 font-bold text-lg h-48 outline-none focus:border-blue-600 transition-all shadow-inner resize-none" />
                  </div>
-                 <button onClick={() => { if(broadcastMsg.trim()) { onBroadcast(broadcastMsg, broadcastTarget); setBroadcastMsg(''); alert('تم بث البلاغ'); } }} disabled={!broadcastMsg.trim()} className="w-full py-8 bg-blue-600 text-white rounded-[2.5rem] font-black text-2xl flex items-center justify-center gap-6 shadow-2xl hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50">
+                 <button onClick={() => { if(broadcastMsg.trim()) { onBroadcast(formatBroadcast(broadcastMsg), broadcastTarget); setBroadcastMsg(''); alert('تم بث الرسالة بنجاح'); } }} disabled={!broadcastMsg.trim()} className="w-full py-8 bg-blue-600 text-white rounded-[2.5rem] font-black text-2xl flex items-center justify-center gap-6 shadow-2xl hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50">
                     <Send size={32}/> بث التعليمات الآن
                  </button>
               </div>
