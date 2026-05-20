@@ -1,15 +1,16 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { User, ControlRequest, Absence, Student } from '../../types';
 import { 
   Check, ShieldCheck, Loader2, ArrowRightCircle, UserCheck, 
   BellRing, History, Clock, UserX, Activity, CheckCircle, 
   ChevronLeft, MapPin, Fingerprint, ShieldAlert, PhoneOutgoing,
   QrCode, X, Search, Navigation, AlertOctagon, Users, Phone,
-  CircleDot, HelpCircle
+  CircleDot, HelpCircle, Volume2, VolumeX
 } from 'lucide-react';
 import { db } from '../../supabase';
 import TeacherBadgeView from '../proctor/TeacherBadgeView';
+import { useNotificationSound } from '../../hooks/useNotificationSound';
 
 interface Props {
   user: User;
@@ -33,6 +34,9 @@ const AssistantControlView: React.FC<Props> = ({
   const [activeTab, setActiveTab] = useState<'MISSION_CONTROL' | 'FIELD_LOGS' | 'TEAM_RADAR'>('MISSION_CONTROL');
   const [showBadge, setShowBadge] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const prevUrgentCount = useRef(0);
+  const { playAlert } = useNotificationSound();
 
   const teamStatus = useMemo(() => {
     const fieldStaff = users.filter(u => 
@@ -59,6 +63,15 @@ const AssistantControlView: React.FC<Props> = ({
   [myRequests]);
 
   const urgentCount = activeRequests.filter(r => r.status === 'PENDING').length;
+
+  /* ── إشعار صوتي عند وصول بلاغ جديد ── */
+  useEffect(() => {
+    if (!soundEnabled) return;
+    if (urgentCount > prevUrgentCount.current) {
+      playAlert('alert');
+    }
+    prevUrgentCount.current = urgentCount;
+  }, [urgentCount, soundEnabled]);
 
   const myCommitteeAbsences = useMemo(() => {
     return absences.filter(a => user.assigned_committees?.includes(a.committee_number));
@@ -115,11 +128,21 @@ const AssistantControlView: React.FC<Props> = ({
                 </div>
              </div>
              <div className="flex gap-4">
-                <div className="bg-white/5 border border-white/10 p-8 rounded-[3rem] text-center min-w-[160px] shadow-inner relative overflow-hidden group">
-                   {urgentCount > 0 && <div className="absolute top-0 left-0 w-full h-1 bg-red-500 animate-pulse"></div>}
-                   <p className="text-[10px] font-black uppercase text-slate-500 mb-2">طلبات معلقة</p>
-                   <p className={`text-6xl font-black tabular-nums ${urgentCount > 0 ? 'text-red-500' : 'text-white'}`}>{urgentCount}</p>
-                </div>
+             <div className="flex gap-4 items-center">
+              <button
+                onClick={() => setSoundEnabled(p => !p)}
+                title={soundEnabled ? 'كتم الإشعارات الصوتية' : 'تفعيل الإشعارات الصوتية'}
+                className={`p-4 rounded-2xl transition-all border ${soundEnabled ? 'bg-white/10 border-white/10 text-white hover:bg-white/20' : 'bg-red-500/20 border-red-500/30 text-red-400'}`}
+              >
+                {soundEnabled ? <Volume2 size={22} /> : <VolumeX size={22} />}
+              </button>
+              <div className="bg-white/5 border border-white/10 p-8 rounded-[3rem] text-center min-w-[160px] shadow-inner relative overflow-hidden group">
+                 {urgentCount > 0 && <div className="absolute top-0 left-0 w-full h-1 bg-red-500 animate-pulse"></div>}
+                 <p className="text-[10px] font-black uppercase text-slate-500 mb-2">طلبات معلقة</p>
+                 <p className={`text-6xl font-black tabular-nums ${urgentCount > 0 ? 'text-red-500' : 'text-white'}`}>{urgentCount}</p>
+                 {urgentCount > 0 && <div className="absolute inset-0 rounded-[3rem] ring-2 ring-red-500/50 animate-ping pointer-events-none" />}
+              </div>
+           </div>
              </div>
           </div>
        </div>
@@ -237,13 +260,20 @@ const AssistantControlView: React.FC<Props> = ({
                             </div>
                             <span className={`px-5 py-2 rounded-full text-[10px] font-black uppercase shadow-sm ${a.type === 'ABSENT' ? 'bg-red-600 text-white' : 'bg-amber-500 text-white'}`}>{a.type === 'ABSENT' ? 'غياب' : 'تأخر'}</span>
                          </div>
-                         <div className="space-y-5 text-right mb-10">
+                         <div className="space-y-5 text-right mb-8">
                             <h4 className="text-2xl font-black text-slate-900 leading-tight truncate">{a.student_name}</h4>
                             <div className="flex flex-wrap gap-2 justify-end">
                                <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-xl text-[10px] font-black border border-blue-100">{student?.grade}</span>
+                               {student?.section && <span className="bg-slate-50 text-slate-500 px-3 py-1 rounded-xl text-[10px] font-black border border-slate-100">فصل {student.section}</span>}
                             </div>
                          </div>
-                         <button disabled={!student?.parent_phone} onClick={() => student?.parent_phone && window.open(`tel:${student.parent_phone}`)} className={`w-full py-5 rounded-2xl font-black text-xs flex items-center justify-center gap-3 shadow-xl transition-all ${student?.parent_phone ? 'bg-slate-950 text-white hover:bg-black' : 'bg-slate-100 text-slate-300 cursor-not-allowed'}`}><Phone size={18} /> اتصال بولي الأمر</button>
+                         <button
+                           disabled={!student?.parent_phone}
+                           onClick={() => student?.parent_phone && window.open(`tel:${student.parent_phone}`)}
+                           className={`w-full py-5 rounded-2xl font-black text-xs flex items-center justify-center gap-3 shadow-xl transition-all ${student?.parent_phone ? 'bg-slate-950 text-white hover:bg-black' : 'bg-slate-100 text-slate-300 cursor-not-allowed'}`}
+                         >
+                           <Phone size={18} /> اتصال بولي الأمر
+                         </button>
                       </div>
                     );
                   })

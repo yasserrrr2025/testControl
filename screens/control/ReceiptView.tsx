@@ -7,7 +7,8 @@ import {
   CheckCircle2, Check, ChevronLeft, Loader2, Save, 
   Trophy, Zap, History, UserCircle, UserX, AlertCircle,
   X, Lock, Unlock, Camera, ShieldCheck, UserCheck,
-  ClipboardCheck, MapPin, Search, GraduationCap, ArrowRight
+  ClipboardCheck, MapPin, Search, GraduationCap, ArrowRight,
+  Activity, Play, CheckCircle
 } from 'lucide-react';
 import { db } from '../../supabase';
 
@@ -41,6 +42,16 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
     return String(id).trim();
   };
 
+  /* ── مطابقة التاريخ بمرونة (يتعامل مع ISO كامل أو YYYY-MM-DD) ── */
+  const matchDate = (isoStr: string | undefined | null, date: string): boolean => {
+    if (!isoStr || !date) return false;
+    try {
+      const d = new Date(isoStr);
+      if (isNaN(d.getTime())) return String(isoStr).startsWith(date);
+      return d.toISOString().startsWith(date);
+    } catch { return String(isoStr ?? '').startsWith(date); }
+  };
+
   const getUniqueKey = (committee: string | number, grade: string): string => {
     return `${cleanId(committee)}_${grade.trim()}`;
   };
@@ -49,13 +60,13 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
   const proctorSubmittedCommittees = useMemo(() => {
     return new Set(
       deliveryLogs
-        .filter(l => l.type === 'RECEIVE' && l.time.startsWith(todayDate) && (l.status === 'PENDING' || l.proctor_name))
+        .filter(l => l.type === 'RECEIVE' && matchDate(l.time, todayDate) && (l.status === 'PENDING' || l.proctor_name))
         .map(l => cleanId(l.committee_number))
     );
   }, [deliveryLogs, todayDate]);
 
   const receivedKeys = useMemo(() => {
-    return new Set(deliveryLogs.filter(l => l.type === 'RECEIVE' && l.status === 'CONFIRMED' && l.time.startsWith(todayDate)).map(l => getUniqueKey(l.committee_number, l.grade)));
+    return new Set(deliveryLogs.filter(l => l.type === 'RECEIVE' && l.status === 'CONFIRMED' && matchDate(l.time, todayDate)).map(l => getUniqueKey(l.committee_number, l.grade)));
   }, [deliveryLogs, todayDate]);
 
   const myGrades = useMemo(() => {
@@ -94,6 +105,19 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
       .sort((a, b) => a.grade.localeCompare(b.grade));
   }, [activeCommitteeId, myTotalScope, receivedKeys]);
 
+  const recentLogs = useMemo(() => {
+    return deliveryLogs
+      .filter(l => l.type === 'RECEIVE' && l.status === 'CONFIRMED' && matchDate(l.time, todayDate))
+      .sort((a,b) => b.time.localeCompare(a.time))
+      .slice(0, 5);
+  }, [deliveryLogs, todayDate]);
+
+  const progressPercentage = useMemo(() => {
+    const total = Object.keys(myTotalScope).length;
+    if (total === 0) return 0;
+    return Math.round((receivedKeys.size / total) * 100);
+  }, [myTotalScope, receivedKeys]);
+
   // دالة المعالجة الذكية (تقبل رقم لجنة أو رقم هوية مراقب)
   const handleStartProcess = (val: string) => {
     const input = cleanId(val);
@@ -106,7 +130,7 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
     
     if (proctorUser) {
       // إذا كانت هوية مراقب، نبحث عن تكليفه النشط اليوم
-      const sv = supervisions.find(s => s.teacher_id === proctorUser.id && s.date.startsWith(todayDate));
+      const sv = supervisions.find(s => s.teacher_id === proctorUser.id && matchDate(s.date, todayDate));
       if (sv) {
         targetCommitteeNum = cleanId(sv.committee_number);
         onAlert(`تم التعرف على المراقب: ${proctorUser.full_name} - لجنة ${targetCommitteeNum}`);
@@ -152,7 +176,7 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
     const item = currentQueue[currentQueueIndex];
     if (!item) return;
 
-    const sv = supervisions.find(s => cleanId(s.committee_number) === item.committee && s.date.startsWith(todayDate));
+    const sv = supervisions.find(s => cleanId(s.committee_number) === item.committee && matchDate(s.date, todayDate));
     const proctorObj = users.find(u => u.id === sv?.teacher_id);
     
     const newLog: DeliveryLog = { 
@@ -191,67 +215,151 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
       
       <div className="flex flex-col md:flex-row justify-between items-end gap-6 border-b pb-8">
         <div className="space-y-2">
-          <div className="bg-blue-600 text-white px-4 py-1 rounded-lg text-[10px] font-black w-fit shadow-lg uppercase tracking-widest">مركز التوثيق والاستلام المركزي</div>
+          <div className="bg-blue-600 text-white px-4 py-1 rounded-lg text-[10px] font-black w-fit shadow-lg uppercase tracking-widest flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+            غرفة العمليات - التوثيق المركزي
+          </div>
           <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter uppercase leading-none">مطابقة واستلام المظاريف</h2>
           <p className="text-slate-400 font-bold italic flex items-center gap-2 tracking-tight mt-2">التاريخ النشط حالياً: {todayDate}</p>
         </div>
+        
+        {/* Circular Progress */}
+        <div className="flex items-center gap-4 bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
+           <div className="text-right">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">معدل الإنجاز</p>
+              <p className="text-2xl font-black text-slate-900 tabular-nums">{progressPercentage}%</p>
+           </div>
+           <div className="relative w-16 h-16 flex items-center justify-center">
+              <svg className="w-full h-full transform -rotate-90">
+                <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="none" className="text-slate-100" />
+                <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="none" 
+                        className="text-blue-600 transition-all duration-1000 ease-out" 
+                        strokeDasharray="175" 
+                        strokeDashoffset={175 - (175 * progressPercentage) / 100} />
+              </svg>
+              <Activity size={20} className="absolute text-blue-600" />
+           </div>
+        </div>
       </div>
 
-      <div className="bg-slate-950 p-10 md:p-14 rounded-[4rem] shadow-2xl relative overflow-hidden group border-b-[10px] border-blue-600">
-         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 blur-[150px] rounded-full -mr-48 -mt-48 transition-all group-hover:bg-blue-600/20"></div>
-         <div className="relative z-10 space-y-10 text-center">
-            <div className="space-y-2">
-               <h3 className="text-3xl font-black text-white">تحقق من الهوية الميدانية</h3>
-               <p className="text-slate-500 font-bold text-sm uppercase tracking-[0.3em]">Scan Committee QR or Proctor ID</p>
-            </div>
+      {/* Action Ticker */}
+      {recentLogs.length > 0 && (
+        <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-xl flex items-center gap-4 overflow-hidden border border-slate-800">
+           <div className="bg-emerald-500/20 text-emerald-400 p-2 rounded-xl shrink-0"><CheckCircle size={20} className="animate-pulse" /></div>
+           <div className="flex-1 whitespace-nowrap overflow-hidden relative">
+              <div className="animate-ticker inline-flex gap-8 items-center h-full">
+                {recentLogs.map(log => (
+                  <span key={log.id} className="text-sm font-bold flex items-center gap-2">
+                    <span className="text-emerald-400">تم الاستلام:</span> 
+                    لجنة {log.committee_number} - {log.grade}
+                    <span className="text-slate-500 text-[10px] mr-2">
+                      ({new Date(log.time).toLocaleTimeString('ar-SA', {hour: '2-digit', minute:'2-digit'})})
+                    </span>
+                  </span>
+                ))}
+              </div>
+           </div>
+        </div>
+      )}
 
-            <div className="flex flex-col lg:flex-row gap-6 items-stretch max-w-4xl mx-auto">
-               <button 
-                 onClick={() => {
-                   setIsScanning(true);
-                   setTimeout(async () => {
-                     try {
-                       const scanner = new Html5Qrcode("receipt-qr-v15");
-                       qrScannerRef.current = scanner;
-                       await scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: 250 }, (text) => { 
-                         handleStartProcess(text); 
-                       }, () => {});
-                     } catch (err) { setIsScanning(false); }
-                   }, 300);
-                 }} 
-                 className="flex-[2] bg-blue-600 text-white p-12 rounded-[3rem] font-black text-3xl flex flex-col items-center justify-center gap-6 shadow-2xl hover:bg-blue-700 transition-all active:scale-95 group/btn"
-               >
-                  <div className="flex items-center gap-4">
-                     <Camera size={64} className="group-hover/btn:rotate-12 transition-transform" />
-                     <LayoutGrid size={40} className="text-white/40" />
-                  </div>
-                  <span>بدء المسح الذكي للكود</span>
-                  <p className="text-[10px] opacity-60 font-bold tracking-widest leading-none">يدعم كود اللجنة وكود المراقب</p>
-               </button>
+      {/* كارت المسح الداكن */}
+      <div className="bg-slate-950 rounded-3xl shadow-xl border-b-[5px] border-blue-600 p-5 space-y-4">
 
-               <div className="flex-1 bg-white/5 border-2 border-white/10 rounded-[3rem] p-6 flex flex-col items-center justify-center gap-4">
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">أو أدخل رقم اللجنة / الهوية</p>
-                  <div className="flex gap-2 w-full px-2">
-                     <input 
-                       type="text" 
-                       value={searchInput} 
-                       onChange={e => setSearchInput(e.target.value)} 
-                       placeholder="00" 
-                       className="bg-transparent border-0 flex-1 px-4 font-black text-4xl text-center text-white outline-none placeholder:text-white/10" 
-                     />
-                     <button onClick={() => handleStartProcess(searchInput)} className="bg-white text-slate-950 p-6 rounded-[2rem] shadow-xl hover:bg-blue-400 transition-all active:scale-90"><ArrowRight size={28}/></button>
-                  </div>
-               </div>
-            </div>
-         </div>
+        {/* رأس */}
+        <div className="text-center">
+          <div className="inline-flex items-center gap-2 bg-blue-600/20 border border-blue-500/30 text-blue-300 px-3 py-1 rounded-full text-xs font-black mb-2">
+            <Scan size={11} /> وحدة الاستلام السريع
+          </div>
+          <h3 className="text-lg font-black text-white">مسح رقم اللجنة أو كود الموظف</h3>
+          <p className="text-slate-500 text-xs font-bold mt-0.5">امسح بطاقة المراقب أو أدخل الرقم يدوياً</p>
+        </div>
 
-         {isScanning && (
-            <div className="fixed inset-0 z-[500] bg-slate-950/98 backdrop-blur-3xl flex flex-col items-center justify-center p-8 no-print text-white">
-              <div id="receipt-qr-v15" className="w-full max-w-sm aspect-square bg-black rounded-[4rem] border-8 border-white/10 overflow-hidden shadow-2xl"></div>
-              <button onClick={stopScanner} className="mt-12 bg-red-600 text-white px-24 py-6 rounded-[2rem] font-black text-2xl shadow-xl active:scale-95">إلغاء وإغلاق</button>
-            </div>
-         )}
+        {/* زر المسح */}
+        <button
+          onClick={() => {
+            setIsScanning(true);
+            setTimeout(async () => {
+              try {
+                const scanner = new Html5Qrcode("receipt-qr-v15");
+                qrScannerRef.current = scanner;
+                await scanner.start(
+                  { facingMode: "environment" },
+                  { fps: 20, qrbox: { width: 260, height: 260 } },
+                  (text) => { handleStartProcess(text); },
+                  () => {}
+                );
+              } catch { setIsScanning(false); }
+            }, 300);
+          }}
+          className="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white py-5 px-5 rounded-2xl font-black flex items-center justify-center gap-4 shadow-lg transition-all"
+        >
+          <div className="bg-white/20 p-2.5 rounded-xl shrink-0">
+            <Scan size={26} />
+          </div>
+          <div className="text-right">
+            <p className="font-black text-base leading-tight">مسح باركود اللجنة</p>
+            <p className="text-blue-200 text-xs font-bold opacity-80">بطاقة المراقب أو QR اللجنة</p>
+          </div>
+        </button>
       </div>
+
+      {/* فاصل */}
+      <div className="flex items-center gap-3 px-2">
+        <div className="flex-1 h-px bg-slate-200" />
+        <span className="text-slate-400 text-xs font-black">أو أدخل يدوياً</span>
+        <div className="flex-1 h-px bg-slate-200" />
+      </div>
+
+      {/* كارت الإدخال — أبيض منفصل */}
+      <div className="bg-white rounded-3xl shadow border border-slate-100 p-5 space-y-3">
+        <p className="text-slate-500 text-xs font-black text-center">رقم اللجنة أو رقم هوية الموظف</p>
+        {/* حقل الإدخال */}
+        <input
+          type="tel"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={searchInput}
+          onChange={e => setSearchInput(e.target.value.replace(/\D/g, ''))}
+          onKeyDown={e => e.key === 'Enter' && searchInput.trim() && handleStartProcess(searchInput)}
+          placeholder="اكتب الرقم هنا"
+          className="w-full bg-slate-50 border-2 border-slate-200 focus:border-blue-500 rounded-2xl px-5 py-4 font-black text-3xl text-center text-slate-900 outline-none transition-all placeholder:text-slate-300 placeholder:text-base placeholder:font-bold"
+          style={{ letterSpacing: '0.1em' }}
+        />
+        {/* زر التأكيد — عرض كامل وواضح */}
+        <button
+          onClick={() => handleStartProcess(searchInput)}
+          disabled={!searchInput.trim()}
+          className="w-full bg-slate-900 text-white hover:bg-blue-600 active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed py-4 rounded-2xl font-black text-base transition-all flex items-center justify-center gap-3 shadow"
+        >
+          <Play className="fill-current" size={20} />
+          تأكيد البحث
+        </button>
+      </div>
+
+
+      {/* شاشة المسح الكامل */}
+      {isScanning && (
+        <div className="fixed inset-0 z-[500] bg-slate-950 flex flex-col items-center justify-center no-print text-white" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+          <div className="text-center mb-8 px-4">
+            <p className="text-white font-black text-xl">وجّه الكاميرا نحو الباركود</p>
+            <p className="text-slate-400 text-sm font-bold mt-1">بطاقة المراقب · QR لجنة · صفحة التعريف</p>
+          </div>
+          <div className="relative w-72 h-72">
+            <div id="receipt-qr-v15" className="w-full h-full bg-black rounded-3xl overflow-hidden shadow-2xl" />
+            <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-blue-500 rounded-tr-2xl pointer-events-none" />
+            <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-blue-500 rounded-tl-2xl pointer-events-none" />
+            <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-blue-500 rounded-br-2xl pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-blue-500 rounded-bl-2xl pointer-events-none" />
+            <div className="absolute top-1/2 left-4 right-4 h-0.5 bg-red-500 shadow-[0_0_12px_red] animate-scan-line pointer-events-none" />
+          </div>
+          <button
+            onClick={stopScanner}
+            className="mt-10 bg-slate-800 border border-slate-700 text-white px-12 py-4 rounded-2xl font-black text-lg active:scale-95 transition-all flex items-center gap-3"
+          >
+            <X size={20} /> إلغاء
+          </button>
+        </div>
+      )}
 
       {activeCommitteeId && currentQueue.length > 0 && (
          <div className="fixed inset-0 z-[600] flex items-center justify-center p-4 animate-fade-in no-print overflow-y-auto">
@@ -311,25 +419,44 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
                                {absences.filter(a => a.committee_number === activeCommitteeId && a.type === 'LATE' && a.date.startsWith(todayDate) && students.find(s => s.national_id === a.student_id)?.grade === currentQueue[currentQueueIndex].grade).length}
                              </p>
                           </div>
-                       </div>
+                        </div>
 
-                       <div className="bg-blue-50/50 p-8 rounded-[3rem] border border-blue-100 flex items-center gap-6 group transition-all hover:bg-blue-100">
-                          <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg border border-blue-100"><UserCheck size={36} className="text-blue-600" /></div>
-                          <div className="flex-1 text-right">
-                             <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1 italic">المراقب الميداني الموثق</p>
-                             <h5 className="text-2xl font-black text-slate-800 leading-tight">
-                                {users.find(u => u.id === supervisions.find(s => cleanId(s.committee_number) === activeCommitteeId && s.date.startsWith(todayDate))?.teacher_id)?.full_name || '---'}
-                             </h5>
+                        {/* بيانات المراقب والمستلم */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="bg-blue-50 p-5 rounded-[2rem] border border-blue-100 flex items-center gap-4">
+                            <div className="w-11 h-11 bg-blue-600 rounded-2xl flex items-center justify-center shrink-0">
+                              <UserCheck size={20} className="text-white" />
+                            </div>
+                            <div className="flex-1 text-right">
+                              <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">المراقب الميداني</p>
+                              <h5 className="text-base font-black text-blue-900 leading-tight">
+                                {users.find(u => u.id === supervisions.find(s => cleanId(s.committee_number) === activeCommitteeId && matchDate(s.date, todayDate))?.teacher_id)?.full_name || <span className="text-blue-300 italic text-sm">لم يُكلَّف بعد</span>}
+                              </h5>
+                            </div>
                           </div>
-                       </div>
+                          <div className="bg-emerald-50 p-5 rounded-[2rem] border border-emerald-100 flex items-center gap-4">
+                            <div className="w-11 h-11 bg-emerald-600 rounded-2xl flex items-center justify-center shrink-0">
+                              <ShieldCheck size={20} className="text-white" />
+                            </div>
+                            <div className="flex-1 text-right">
+                              <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-1">المستلم (كنترول)</p>
+                              <h5 className="text-base font-black text-emerald-900 leading-tight">{user.full_name}</h5>
+                            </div>
+                          </div>
+                        </div>
 
-                       <button 
-                         onClick={confirmReceipt} 
-                         disabled={isSaving}
-                         className="w-full py-8 bg-slate-950 text-white rounded-[2.5rem] font-black text-2xl flex items-center justify-center gap-6 shadow-2xl hover:bg-emerald-600 transition-all active:scale-95 shadow-emerald-500/20"
-                       >
-                          <Save size={36}/> مطابقة وتوثيق الاستلام النهائي
-                       </button>
+                       <div className="pt-4">
+                         <button 
+                           onClick={confirmReceipt} 
+                           disabled={isSaving}
+                           className="w-full py-6 bg-emerald-600 text-white rounded-[2rem] font-black text-2xl flex items-center justify-center gap-4 shadow-[0_10px_30px_rgba(16,185,129,0.3)] hover:bg-emerald-700 transition-all active:scale-95 relative overflow-hidden group"
+                         >
+                            <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            <Save size={32}/> 
+                            <span>مطابقة وتوثيق الاستلام النهائي</span>
+                         </button>
+                         <p className="text-center text-[11px] font-bold text-slate-400 mt-4">بالضغط أنت تقر بأنك طابقت الأعداد الفعلية في المظروف مع المسجلة أعلاه.</p>
+                       </div>
                     </div>
                   </div>
                )}
@@ -347,42 +474,49 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
            stats.remainingKeys.map(key => {
              const info = myTotalScope[key];
              const isReady = proctorSubmittedCommittees.has(info.committee);
-             const sv = supervisions.find(s => cleanId(s.committee_number) === info.committee && s.date.startsWith(todayDate));
+              const sv = supervisions.find(s => cleanId(s.committee_number) === info.committee && matchDate(s.date, todayDate));
              const proctor = users.find(u => u.id === sv?.teacher_id);
              
              return (
-               <div key={key} className={`bg-white p-8 rounded-[3.5rem] border-2 shadow-xl transition-all relative overflow-hidden group ${isReady ? 'border-emerald-400 bg-emerald-50/20 scale-[1.02]' : 'border-slate-50 opacity-80'}`}>
+               <div key={key} className={`bg-white p-8 rounded-[3.5rem] border-2 shadow-xl transition-all relative overflow-hidden group flex flex-col justify-between ${isReady ? 'border-emerald-400 bg-emerald-50/30 shadow-emerald-500/10 hover:shadow-emerald-500/20' : 'border-slate-50 opacity-80'}`}>
                   {isReady && (
-                    <div className="absolute top-0 right-0 bg-emerald-500 text-white px-6 py-2 rounded-bl-[1.5rem] font-black text-[9px] uppercase tracking-widest flex items-center gap-2 animate-pulse">
-                      <ClipboardCheck size={14}/> جاهزة للمطابقة
-                    </div>
+                    <>
+                      <div className="absolute top-0 right-0 bg-emerald-500 text-white px-6 py-2 rounded-bl-[1.5rem] font-black text-[9px] uppercase tracking-widest flex items-center gap-2 shadow-md z-10">
+                        <div className="w-2 h-2 rounded-full bg-white animate-pulse"></div> جاهزة للمطابقة
+                      </div>
+                      <div className="absolute -top-10 -right-10 w-32 h-32 bg-emerald-400/20 blur-3xl rounded-full pointer-events-none"></div>
+                    </>
                   )}
 
-                  <div className="flex justify-between items-start mb-6">
+                  <div className="flex justify-between items-start mb-6 relative z-10 mt-2">
                      <div className="flex flex-col">
-                        <span className={`text-6xl font-black leading-none tracking-tighter ${isReady ? 'text-slate-900' : 'text-slate-300'}`}>{info.committee}</span>
+                        <div className="flex items-baseline gap-2">
+                          <span className={`text-6xl font-black leading-none tracking-tighter tabular-nums ${isReady ? 'text-slate-900' : 'text-slate-300'}`}>{info.committee}</span>
+                        </div>
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">لجنة ميدانية</span>
                      </div>
-                     <div className={`px-4 py-1.5 rounded-xl text-[10px] font-black ${isReady ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-100 text-slate-400'}`}>
+                     <div className={`px-4 py-1.5 rounded-xl text-[10px] font-black ${isReady ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-400'}`}>
                         {info.grade}
                      </div>
                   </div>
 
-                  <div className="space-y-4 mb-8">
-                     <div className="flex items-center gap-3 p-4 bg-white/50 rounded-2xl border border-slate-100 shadow-sm transition-all group-hover:bg-white">
-                        <UserCircle size={20} className={isReady ? 'text-blue-500' : 'text-slate-300'} />
+                  <div className="space-y-4 mb-8 mt-auto relative z-10">
+                     <div className="flex items-center gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-100 shadow-sm transition-all group-hover:bg-white">
+                        <UserCircle size={20} className={isReady ? 'text-slate-700' : 'text-slate-300'} />
                         <div className="min-w-0 flex-1">
                            <p className="text-[8px] font-black text-slate-400 uppercase leading-none mb-1">المراقب المسؤول</p>
-                           <p className="text-sm font-black text-slate-700 truncate">{proctor?.full_name || 'بانتظار المباشرة...'}</p>
+                           <p className={`text-sm font-black truncate ${isReady ? 'text-slate-800' : 'text-slate-400'}`}>{proctor?.full_name || 'بانتظار المباشرة...'}</p>
                         </div>
                      </div>
                   </div>
 
                   <button 
-                    onClick={() => handleStartProcess(info.committee)}
-                    className={`w-full py-5 rounded-[2rem] font-black text-lg transition-all flex items-center justify-center gap-3 active:scale-95 shadow-xl ${isReady ? 'bg-slate-900 text-white hover:bg-black' : 'bg-slate-50 text-slate-300 cursor-not-allowed border border-slate-100'}`}
+                    onClick={() => {
+                      if (isReady) handleStartProcess(info.committee);
+                    }}
+                    className={`w-full py-5 rounded-[2rem] font-black text-lg transition-all flex items-center justify-center gap-3 shadow-sm relative z-10 ${isReady ? 'bg-emerald-500 hover:bg-emerald-600 text-white active:scale-95' : 'bg-slate-50 text-slate-300 cursor-not-allowed border border-slate-100'}`}
                   >
-                     {isReady ? <>بدء المطابقة الفورية <ArrowRight size={24} className="rotate-180" /></> : <><Lock size={20} /> قيد الرصد الميداني</>}
+                     {isReady ? <>استلام سريع <ArrowRight size={20} className="rotate-180" /></> : <><Lock size={18} /> قيد الرصد الميداني</>}
                   </button>
                </div>
              );
@@ -391,12 +525,20 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
       </div>
 
       <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.05); border-radius: 10px; }
         @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slide-up { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes scan-laser { 0% { transform: translateY(-50%); } 100% { transform: translateY(50%); } }
+        @keyframes scan-line { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
+        @keyframes ticker-scroll { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+        
         .animate-fade-in { animation: fade-in 0.4s ease-out; }
         .animate-slide-up { animation: slide-up 0.4s ease-out forwards; }
+        .animate-scan-laser { animation: scan-laser 3s linear infinite; }
+        .animate-scan-line { animation: scan-line 2s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+        .animate-ticker { animation: ticker-scroll 20s linear infinite; white-space: nowrap; display: inline-block; padding-left: 100%; }
+        .animate-ticker:hover { animation-play-state: paused; }
       `}</style>
     </div>
   );

@@ -13,7 +13,8 @@ import {
   UserCog, LogOut, ToggleLeft, ToggleRight,
   Radio, CalendarPlus, AlertOctagon, RefreshCw,
   Plus, X, Check, Navigation, Megaphone,
-  Bell, Command, Shield, RefreshCcw, ArrowRight, UserCircle
+  Bell, Command, Shield, RefreshCcw, ArrowRight, UserCircle,
+  Copy, ExternalLink, Link2
 } from 'lucide-react';
 import { User, DeliveryLog, Student, UserRole, SystemConfig, Absence, Supervision } from '../../types';
 import { ROLES_ARABIC } from '../../constants';
@@ -90,6 +91,17 @@ const ControlManager: React.FC<ControlManagerProps> = ({
     } catch (err: any) { alert(err.message); } finally { setIsResetting(false); }
   };
 
+  const studentInquiryUrl = `${window.location.origin}${window.location.pathname}?student_inquiry=1`;
+
+  const handleCopyStudentInquiryLink = async () => {
+    try {
+      await navigator.clipboard.writeText(studentInquiryUrl);
+      alert('تم نسخ رابط استعلام الطلاب عن اللجنة.');
+    } catch {
+      window.prompt('انسخ رابط استعلام الطلاب:', studentInquiryUrl);
+    }
+  };
+
   return (
     <div className="space-y-8 animate-fade-in text-right pb-32">
       {/* Header */}
@@ -112,6 +124,41 @@ const ControlManager: React.FC<ControlManagerProps> = ({
                بدء يوم عمل جديد
             </button>
          </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white rounded-[3rem] p-7 border border-orange-100 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-center gap-5">
+            <div className="p-4 bg-orange-50 text-orange-600 rounded-2xl shadow-inner">
+              <Link2 size={30} />
+            </div>
+            <div>
+              <h3 className="text-2xl font-black text-slate-900">رابط استعلام الطلاب عن لجانهم</h3>
+              <p className="text-sm font-bold text-slate-500 mt-1">صفحة عامة للطلاب برقم الهوية، بعنوان: استعلام عن اللجنة.</p>
+              <p className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-xs font-black text-slate-500 break-all" dir="ltr">{studentInquiryUrl}</p>
+            </div>
+          </div>
+          <div className="flex shrink-0 gap-3">
+            <button onClick={handleCopyStudentInquiryLink} className="h-14 w-14 rounded-2xl bg-slate-950 text-white flex items-center justify-center shadow-xl hover:bg-orange-600 transition-all" title="نسخ الرابط">
+              <Copy size={22} />
+            </button>
+            <button onClick={() => window.open(studentInquiryUrl, '_blank')} className="h-14 w-14 rounded-2xl bg-orange-500 text-white flex items-center justify-center shadow-xl hover:bg-orange-600 transition-all" title="فتح الرابط">
+              <ExternalLink size={22} />
+            </button>
+          </div>
+        </div>
+
+        <button onClick={() => { localStorage.setItem('activeTab', 'control-monitor'); window.location.reload(); }} className="bg-slate-950 rounded-[3rem] p-7 text-white border border-white/10 shadow-xl text-right group overflow-hidden relative">
+          <div className="absolute inset-0 bg-orange-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+          <div className="relative z-10 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-black text-orange-300 uppercase tracking-widest mb-2">TV Display</p>
+              <h3 className="text-2xl font-black">لوحة العرض والتحكم</h3>
+              <p className="text-xs font-bold text-slate-400 mt-2">تغيير التقسيمات وعرض حالة اللجان مباشرة.</p>
+            </div>
+            <MonitorPlay className="text-orange-400 group-hover:scale-110 transition-transform" size={42} />
+          </div>
+        </button>
       </div>
 
       {/* Tabs */}

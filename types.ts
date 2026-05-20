@@ -84,3 +84,13 @@ export interface SystemConfig {
   active_exam_date?: string;
   allow_manual_join?: boolean;
 }
+
+export interface EnvelopeOpening {
+  id: string;
+  date: string;
+  time: string;
+  subject: string;
+  grade: string;
+  status: 'INTACT' | 'DAMAGED';
+  opened_by: string;
+}

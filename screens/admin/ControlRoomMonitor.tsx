@@ -23,6 +23,9 @@ interface Props {
 const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, deliveryLogs, students, requests }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [maximizedPanel, setMaximizedPanel] = useState<'MAP' | 'ABSENCES' | 'REPORTS' | null>(null);
+  const [screenMode, setScreenMode] = useState<'split' | 'map' | 'alerts'>('split');
+  const [isCompact, setIsCompact] = useState(false);
+  const [showTicker, setShowTicker] = useState(true);
   const activeDate = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
@@ -87,7 +90,7 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
     <div className={`bg-white/[0.02] border border-white/5 rounded-[3.5rem] p-8 flex flex-col shadow-inner transition-all duration-500 ${isFull ? 'h-full' : 'h-[55%]'}`}>
       <div className="flex items-center justify-between mb-8">
          <div className="flex items-center gap-4">
-            <div className="bg-blue-600/10 p-4 rounded-[1.5rem] text-blue-400"><LayoutGrid size={isFull ? 40 : 28} /></div>
+            <div className="bg-orange-500/10 p-4 rounded-[1.5rem] text-orange-300"><LayoutGrid size={isFull ? 40 : 28} /></div>
             <div>
               <h2 className={`${isFull ? 'text-5xl' : 'text-3xl'} font-black tracking-tighter`}>خريطة اللجان الحية</h2>
               <p className="text-slate-500 text-[10px] font-black uppercase mt-1">تزامن لحظي مع الميدان لليوم</p>
@@ -100,30 +103,31 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
                 <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></div><span>بلاغ عاجل</span></div>
             </div>
             <button onClick={() => toggleMaximize('MAP')} className="p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-all">
-               {isFull ? <Minimize2 size={24} className="text-blue-400" /> : <Maximize2 size={24} />}
+               {isFull ? <Minimize2 size={24} className="text-orange-300" /> : <Maximize2 size={24} />}
             </button>
          </div>
       </div>
       <div className="flex-1 overflow-y-auto custom-scrollbar">
-         <div className={`grid ${isFull ? 'grid-cols-8 md:grid-cols-10 lg:grid-cols-12' : 'grid-cols-6 md:grid-cols-8 lg:grid-cols-9'} gap-4 p-2`}>
+         <div className={`grid ${isFull ? 'grid-cols-8 md:grid-cols-10 lg:grid-cols-12' : isCompact ? 'grid-cols-8 md:grid-cols-10 lg:grid-cols-12' : 'grid-cols-6 md:grid-cols-8 lg:grid-cols-9'} gap-4 p-2`}>
             {committeeGrid.map(c => (
               <div key={c.num} className={`
                 aspect-square rounded-[2rem] border-2 flex flex-col items-center justify-center transition-all duration-700 relative overflow-hidden
                 ${c.isDone ? 'bg-emerald-600 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)]' : 
                   c.hasAlert ? 'bg-red-600 border-red-400 shadow-[0_0_40px_rgba(220,38,38,0.5)] animate-pulse scale-110 z-20' : 
-                  c.isSubmitted ? 'bg-orange-500 border-orange-300 shadow-[0_0_30px_rgba(249,115,22,0.6)] animate-pulse scale-105' :
-                  c.inProgress ? 'bg-blue-600/40 border-blue-400' :
-                  c.isOccupied ? 'bg-blue-600/20 border-blue-500/30' : 
+                  c.isSubmitted ? 'bg-orange-500 border-orange-200 shadow-[0_0_55px_rgba(249,115,22,0.95)] animate-[orangeFlash_1.2s_ease-in-out_infinite] scale-105' :
+                  c.inProgress ? 'bg-orange-600/35 border-orange-300' :
+                  c.isOccupied ? 'bg-white/10 border-orange-400/30' : 
                   'bg-white/5 border-white/5 opacity-20'}
               `}>
                 {c.isSubmitted && (
                    <div className="absolute inset-0 flex items-center justify-center opacity-10">
-                      <Truck size={60} className="-rotate-12" />
+                      <Truck size={isFull ? 96 : 72} className="-rotate-12" />
                    </div>
                 )}
-                {c.isSubmitted && <Truck size={12} className="absolute top-2 right-2 text-white animate-bounce" />}
+                {c.isSubmitted && <Truck size={isFull ? 26 : 20} className="absolute top-3 right-3 text-white animate-bounce drop-shadow-xl" />}
                 <span className="text-[8px] font-black opacity-40 uppercase relative z-10">لجنة</span>
-                <span className={`${isFull ? 'text-4xl' : 'text-3xl'} font-black tabular-nums tracking-tighter relative z-10`}>{c.num}</span>
+                <span className={`${isFull ? 'text-4xl' : isCompact ? 'text-2xl' : 'text-3xl'} font-black tabular-nums tracking-tighter relative z-10`}>{c.num}</span>
+                {c.isSubmitted && <span className="relative z-10 mt-1 rounded-full bg-white/20 px-2 py-1 text-[7px] font-black">إلى الكنترول</span>}
               </div>
             ))}
          </div>
@@ -135,14 +139,14 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
     <div className={`bg-white/[0.03] border border-white/10 rounded-[3.5rem] p-10 flex flex-col shadow-2xl transition-all duration-500 ${isFull ? 'h-full' : 'h-[45%]'}`}>
        <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-             <div className="p-4 bg-blue-600/10 text-blue-400 rounded-2xl"><Users size={isFull ? 40 : 28} /></div>
+             <div className="p-4 bg-orange-500/10 text-orange-300 rounded-2xl"><Users size={isFull ? 40 : 28} /></div>
              <div>
                 <h3 className={`${isFull ? 'text-5xl' : 'text-2xl'} font-black text-white tracking-tight`}>بيانات غياب وتأخر اللجان</h3>
                 <p className="text-slate-500 text-[10px] font-black uppercase mt-1">رصد يومي دقيق للحالات</p>
              </div>
           </div>
           <button onClick={() => toggleMaximize('ABSENCES')} className="p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-all">
-             {isFull ? <Minimize2 size={24} className="text-blue-400" /> : <Maximize2 size={24} />}
+             {isFull ? <Minimize2 size={24} className="text-orange-300" /> : <Maximize2 size={24} />}
           </button>
        </div>
        <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -172,7 +176,7 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
                                {a.type === 'ABSENT' ? 'غائب' : 'متأخر'}
                             </span>
                           </td>
-                         <td className="py-5 px-6 text-left font-black text-blue-400 font-mono">
+                         <td className="py-5 px-6 text-left font-black text-orange-300 font-mono">
                            {new Date(a.date).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'})}
                          </td>
                       </tr>
@@ -193,7 +197,7 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
              <h2 className={`${isFull ? 'text-4xl' : 'text-xl'} font-black text-white tracking-tighter`}>بلاغات العمليات اليومية</h2>
           </div>
           <button onClick={() => toggleMaximize('REPORTS')} className="p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-all">
-             {isFull ? <Minimize2 size={24} className="text-blue-400" /> : <Maximize2 size={24} />}
+             {isFull ? <Minimize2 size={24} className="text-orange-300" /> : <Maximize2 size={24} />}
           </button>
        </div>
        <div className="flex-1 overflow-y-auto space-y-4 custom-scrollbar">
@@ -222,8 +226,8 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
     <div className="fixed inset-0 bg-[#020617] text-white overflow-hidden font-['Tajawal'] z-[100] flex flex-col p-4 dir-rtl text-right">
       <div className="flex justify-between items-center h-24 mb-4 border-b border-white/5 pb-4">
         <div className="bg-white/[0.03] border border-white/10 rounded-[2rem] px-8 py-3 flex items-center gap-6 shadow-2xl backdrop-blur-md">
-           <MonitorPlay className="text-blue-500" size={32} />
-           <div className="text-4xl font-black tabular-nums tracking-widest text-blue-400 font-mono">
+           <MonitorPlay className="text-orange-400" size={32} />
+           <div className="text-4xl font-black tabular-nums tracking-widest text-orange-300 font-mono">
               {currentTime.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/[صم]/, '')}
            </div>
         </div>
@@ -231,12 +235,30 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
            <div className="flex items-center gap-6">
               <span className="text-4xl font-black text-white">{stats.progress}%</span>
               <div className="w-96 h-3 bg-white/5 rounded-full overflow-hidden border border-white/10 shadow-inner">
-                 <div className="h-full bg-gradient-to-l from-blue-600 via-blue-400 to-indigo-500 transition-all duration-1000 shadow-[0_0_20px_rgba(37,99,235,0.4)]" style={{ width: `${stats.progress}%` }}></div>
+                 <div className="h-full bg-gradient-to-l from-orange-600 via-amber-400 to-emerald-400 transition-all duration-1000 shadow-[0_0_24px_rgba(249,115,22,0.55)]" style={{ width: `${stats.progress}%` }}></div>
               </div>
            </div>
            <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] mt-2">معدل الإنجاز الميداني النشط</p>
         </div>
         <div className="flex items-center gap-6">
+           <div className="hidden xl:flex bg-white/[0.03] border border-white/10 rounded-[2rem] p-2 gap-2">
+              {[
+                { id: 'split', label: 'تقسيم', icon: LayoutPanelTop },
+                { id: 'map', label: 'الخريطة', icon: LayoutGrid },
+                { id: 'alerts', label: 'البلاغات', icon: Bell },
+              ].map(item => (
+                <button key={item.id} onClick={() => { setScreenMode(item.id as any); setMaximizedPanel(null); }} className={`px-4 py-3 rounded-2xl text-[10px] font-black flex items-center gap-2 transition-all ${screenMode === item.id ? 'bg-orange-500 text-white shadow-[0_0_24px_rgba(249,115,22,0.35)]' : 'text-slate-400 hover:bg-white/5'}`}>
+                  <item.icon size={16} />
+                  {item.label}
+                </button>
+              ))}
+              <button onClick={() => setIsCompact(v => !v)} className={`px-4 py-3 rounded-2xl text-[10px] font-black transition-all ${isCompact ? 'bg-white text-slate-950' : 'text-slate-400 hover:bg-white/5'}`}>
+                تكثيف
+              </button>
+              <button onClick={() => setShowTicker(v => !v)} className={`px-4 py-3 rounded-2xl text-[10px] font-black transition-all ${showTicker ? 'bg-white text-slate-950' : 'text-slate-400 hover:bg-white/5'}`}>
+                الشريط
+              </button>
+           </div>
            <div className="text-right">
               <span className="bg-emerald-400/10 text-emerald-400 px-6 py-2 rounded-full border border-emerald-400/20 text-[10px] font-black flex items-center gap-3">
                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.8)]"></div> البث المباشر نشط
@@ -245,11 +267,24 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
            </div>
         </div>
       </div>
-      <div className="flex-1 grid grid-cols-12 gap-6 overflow-hidden">
-        <div className="col-span-3 flex flex-col gap-6 overflow-hidden">
+      {showTicker && (
+        <div className="mb-4 flex items-center gap-4 overflow-hidden rounded-[1.5rem] border border-orange-400/20 bg-orange-500/10 px-5 py-3 text-orange-100">
+          <Truck size={26} className="text-orange-300 animate-bounce" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-black uppercase tracking-widest text-orange-300">حالة متجه للكنترول</p>
+            <p className="truncate text-sm font-black">
+              اللون البرتقالي الوامض يعني أن أوراق اللجنة في طريقها للكنترول ولم تكتمل المطابقة النهائية بعد.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className={`${screenMode === 'map' ? 'flex-1 overflow-hidden' : screenMode === 'alerts' ? 'flex-1 grid grid-cols-12 gap-6 overflow-hidden' : 'flex-1 grid grid-cols-12 gap-6 overflow-hidden'}`}>
+        {screenMode !== 'map' && (
+        <div className={`${screenMode === 'alerts' ? 'col-span-4' : 'col-span-3'} flex flex-col gap-6 overflow-hidden`}>
           <div className="grid grid-cols-1 gap-4">
              {[
-               { icon: Users, color: 'text-blue-500', bg: 'bg-blue-600/10', val: stats.totalComs, label: 'إجمالي اللجان' },
+               { icon: Users, color: 'text-orange-300', bg: 'bg-orange-500/10', val: stats.totalComs, label: 'إجمالي اللجان' },
                { icon: PackageCheck, color: 'text-emerald-500', bg: 'bg-emerald-600/10', val: stats.completed, label: 'لجان منتهية' },
                { icon: Timer, color: 'text-amber-500', bg: 'bg-amber-600/10', val: stats.lates, label: 'حالات تأخر' },
                { icon: UserX, color: 'text-red-500', bg: 'bg-red-600/10', val: stats.absents, label: 'حالات غياب' }
@@ -263,12 +298,19 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
                 </div>
              ))}
           </div>
-          {maximizedPanel !== 'REPORTS' && <ReportsPanel />}
+          {screenMode !== 'alerts' && maximizedPanel !== 'REPORTS' && <ReportsPanel />}
         </div>
-        <div className="col-span-9 flex flex-col gap-6 overflow-hidden">
-          {maximizedPanel === 'MAP' ? <MapPanel isFull /> : maximizedPanel === 'ABSENCES' ? <AbsencesPanel isFull /> : maximizedPanel === 'REPORTS' ? <ReportsPanel isFull /> : <><MapPanel /><AbsencesPanel /></>}
+        )}
+        <div className={`${screenMode === 'map' ? 'h-full' : screenMode === 'alerts' ? 'col-span-8' : 'col-span-9'} flex flex-col gap-6 overflow-hidden`}>
+          {screenMode === 'map' ? <MapPanel isFull /> : screenMode === 'alerts' ? <ReportsPanel isFull /> : maximizedPanel === 'MAP' ? <MapPanel isFull /> : maximizedPanel === 'ABSENCES' ? <AbsencesPanel isFull /> : maximizedPanel === 'REPORTS' ? <ReportsPanel isFull /> : <><MapPanel /><AbsencesPanel /></>}
         </div>
       </div>
+      <style>{`
+        @keyframes orangeFlash {
+          0%, 100% { filter: brightness(1); transform: scale(1.03); }
+          50% { filter: brightness(1.35); transform: scale(1.09); }
+        }
+      `}</style>
     </div>
   );
 };

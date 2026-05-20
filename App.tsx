@@ -22,6 +22,12 @@ import CounselorAbsenceMonitor from './screens/counselor/AbsenceMonitor';
 import ControlReceiptView from './screens/control/ReceiptView';
 import ReceiptLogsView from './screens/control/ReceiptLogsView';
 import AssistantControlView from './screens/control/AssistantControlView';
+import EnvelopeOpeningView from './screens/control/EnvelopeOpeningView';
+import EnvelopeLabelsPrint from './screens/admin/EnvelopeLabelsPrint';
+import DoorLabelsPrint from './screens/admin/DoorLabelsPrint';
+import CommitteePublicView from './screens/public/CommitteePublicView';
+import StudentCommitteeInquiry from './screens/public/StudentCommitteeInquiry';
+import GlobalQRScanner from './components/GlobalQRScanner';
 import { BellRing, Menu, X, CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2 } from 'lucide-react';
 import { db, supabase } from './supabase';
 
@@ -96,9 +102,13 @@ const App: React.FC = () => {
         const user = JSON.parse(savedUser);
         setCurrentUser(user);
         if (!activeTab) {
-          const defaultTab = user.role === 'ADMIN' ? 'dashboard' : 
-                           user.role === 'CONTROL_MANAGER' ? 'head-dash' : 
-                           user.role === 'ASSISTANT_CONTROL' ? 'assigned-requests' : 'my-tasks';
+          const defaultTab = 
+            user.role === 'ADMIN'             ? 'dashboard' :
+            user.role === 'CONTROL_MANAGER'   ? 'head-dash' :
+            user.role === 'ASSISTANT_CONTROL' ? 'assigned-requests' :
+            user.role === 'CONTROL'           ? 'paper-logs' :
+            user.role === 'COUNSELOR'         ? 'student-absences' :
+            'my-tasks';
           setActiveTab(defaultTab);
         }
       } catch (e) { 
@@ -120,9 +130,13 @@ const App: React.FC = () => {
   const handleLoginSuccess = (u: User) => {
     setCurrentUser(u);
     localStorage.setItem('currentUser', JSON.stringify(u));
-    const defaultTab = u.role === 'ADMIN' ? 'dashboard' : 
-                     u.role === 'CONTROL_MANAGER' ? 'head-dash' : 
-                     u.role === 'ASSISTANT_CONTROL' ? 'assigned-requests' : 'my-tasks';
+    const defaultTab =
+      u.role === 'ADMIN'             ? 'dashboard' :
+      u.role === 'CONTROL_MANAGER'   ? 'head-dash' :
+      u.role === 'ASSISTANT_CONTROL' ? 'assigned-requests' :
+      u.role === 'CONTROL'           ? 'paper-logs' :
+      u.role === 'COUNSELOR'         ? 'student-absences' :
+      'my-tasks';
     setActiveTab(defaultTab);
     localStorage.setItem('activeTab', defaultTab);
   };
@@ -131,9 +145,12 @@ const App: React.FC = () => {
     if (!currentUser) return null;
     
     const tabToRender = activeTab || (
-      currentUser.role === 'ADMIN' ? 'dashboard' : 
-      currentUser.role === 'CONTROL_MANAGER' ? 'head-dash' : 
-      currentUser.role === 'ASSISTANT_CONTROL' ? 'assigned-requests' : 'my-tasks'
+      currentUser.role === 'ADMIN'             ? 'dashboard' :
+      currentUser.role === 'CONTROL_MANAGER'   ? 'head-dash' :
+      currentUser.role === 'ASSISTANT_CONTROL' ? 'assigned-requests' :
+      currentUser.role === 'CONTROL'           ? 'paper-logs' :
+      currentUser.role === 'COUNSELOR'         ? 'student-absences' :
+      'my-tasks'
     );
 
     switch (tabToRender) {
@@ -160,20 +177,43 @@ const App: React.FC = () => {
       case 'paper-logs': return <ControlReceiptView user={currentUser} students={students} absences={absences} deliveryLogs={deliveryLogs} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} supervisions={supervisions} users={users} controlRequests={controlRequests} setControlRequests={fetchData} systemConfig={systemConfig} onAlert={addLocalNotification} />;
       case 'receipt-history': return <ReceiptLogsView deliveryLogs={deliveryLogs} users={users} />;
       case 'digital-id': return <TeacherBadgeView user={currentUser} />;
-      case 'proctor-alerts': return <ProctorAlertsHistory requests={controlRequests} userFullName={currentUser.full_name} />;
+      case 'proctor-alerts': return <ProctorAlertsHistory requests={controlRequests} userFullName={currentUser.full_name} deliveryLogs={deliveryLogs} supervisions={supervisions} systemConfig={systemConfig} />;
       case 'student-absences': return <CounselorAbsenceMonitor absences={absences} students={students} supervisions={supervisions} users={users} />;
       case 'my-tasks': return <ProctorDailyAssignmentFlow user={currentUser} supervisions={supervisions} setSupervisions={fetchData} students={students} absences={absences} setAbsences={fetchData} deliveryLogs={deliveryLogs} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} sendRequest={async (txt, com) => { await db.controlRequests.insert({ from: currentUser.full_name, committee: com, text: txt, time: new Date().toISOString(), status: 'PENDING' }); await fetchData(); }} controlRequests={controlRequests} users={users} systemConfig={systemConfig} committeeReports={committeeReports} onReportUpsert={async (report) => { await db.committeeReports.upsert(report); await fetchData(); }} onAlert={addLocalNotification} />;
+      case 'envelope-opening': return <EnvelopeOpeningView user={currentUser} systemConfig={systemConfig} users={users} />;
+      case 'envelope-labels': return <EnvelopeLabelsPrint students={students} />;
+      case 'door-labels': return <DoorLabelsPrint students={students} />;
       default: return <div className="p-20 text-center animate-pulse text-slate-400 font-bold">جاري تحميل المحتوى المخصص...</div>;
     }
   };
 
-  if (isInitialLoading && currentUser) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-6">
-        <Loader2 size={64} className="text-blue-600 animate-spin" />
-        <p className="font-black text-slate-500 italic">جاري تهيئة مركز العمليات...</p>
-      </div>
-    );
+  if (isInitialLoading) {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('public_committee') || params.get('student_inquiry')) {
+       return (
+         <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-6 font-['Tajawal']" dir="rtl">
+           <Loader2 size={48} className="text-blue-600 animate-spin" />
+           <p className="font-bold text-slate-500 text-sm">جاري جلب بيانات اللجنة...</p>
+         </div>
+       );
+    } else if (currentUser) {
+       return (
+         <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-6">
+           <Loader2 size={64} className="text-blue-600 animate-spin" />
+           <p className="font-black text-slate-500 italic">جاري تهيئة مركز العمليات...</p>
+         </div>
+       );
+    }
+  }
+
+  const publicCommitteeId = new URLSearchParams(window.location.search).get('public_committee');
+  if (publicCommitteeId) {
+    return <CommitteePublicView committeeNumber={publicCommitteeId} students={students} supervisions={supervisions} absences={absences} users={users} />;
+  }
+
+  const isStudentInquiry = new URLSearchParams(window.location.search).get('student_inquiry');
+  if (isStudentInquiry) {
+    return <StudentCommitteeInquiry students={students} />;
   }
 
   return (
@@ -201,7 +241,10 @@ const App: React.FC = () => {
 
       {currentUser && (
         <>
-          <header className="fixed top-0 right-0 left-0 bg-white/80 backdrop-blur-md z-[90] lg:hidden border-b px-6 py-4 flex justify-between items-center no-print shadow-sm">
+          <header
+            style={{ paddingTop: 'calc(env(safe-area-inset-top) + 12px)' }}
+            className="fixed top-0 right-0 left-0 bg-white/90 backdrop-blur-md z-[90] lg:hidden border-b px-6 pb-4 flex justify-between items-center no-print shadow-sm"
+          >
              <button onClick={() => setIsSidebarOpen(true)} className="p-2 bg-slate-100 rounded-xl hover:bg-blue-50 transition-colors">
                 <Menu size={24} className="text-slate-700" />
              </button>
@@ -224,15 +267,36 @@ const App: React.FC = () => {
         </>
       )}
 
-      <main className={`transition-all duration-300 min-h-screen ${currentUser ? (isSidebarCollapsed ? 'lg:mr-24' : 'lg:mr-80') : ''} ${currentUser ? 'p-6 lg:p-10 pt-24 lg:pt-10' : ''}`}>
+      <main
+        style={{ paddingTop: currentUser ? 'calc(env(safe-area-inset-top) + 80px)' : undefined }}
+        className={`transition-all duration-300 min-h-screen ${currentUser ? (isSidebarCollapsed ? 'lg:mr-24' : 'lg:mr-80') : ''} ${currentUser ? 'px-4 pb-6 lg:p-10 lg:pt-10' : ''}`}
+      >
         {currentUser ? renderContent() : <Login users={users} onLogin={handleLoginSuccess} onAlert={addLocalNotification} />}
       </main>
+
+      {/* 
+      {currentUser && ['ADMIN', 'CONTROL_MANAGER', 'ASSISTANT_CONTROL', 'COUNSELOR'].includes(currentUser.role) && (
+         <GlobalQRScanner 
+           students={students} 
+           absences={absences} 
+           activeDate={systemConfig.active_exam_date || new Date().toISOString().split('T')[0]} 
+           onRefreshData={fetchData} 
+         />
+      )}
+      */}
 
       <style>{`
         @keyframes slideIn { from { transform: translateX(-100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         .animate-slide-in { animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         body { -webkit-tap-highlight-color: transparent; }
         input, select, button { outline: none !important; }
+        /* iOS Safe Area Fix */
+        :root {
+          --sat: env(safe-area-inset-top);
+          --sab: env(safe-area-inset-bottom);
+          --sal: env(safe-area-inset-left);
+          --sar: env(safe-area-inset-right);
+        }
       `}</style>
     </div>
   );

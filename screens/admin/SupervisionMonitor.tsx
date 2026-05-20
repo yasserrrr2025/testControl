@@ -140,7 +140,7 @@ const AdminSupervisionMonitor: React.FC<Props> = ({ supervisions, users, student
           @media print {
             @page { 
               size: A4 portrait; 
-              margin: 3mm 3mm; /* تضييق الهوامش لأقصى حد */
+              margin: 3mm; 
             }
             body { 
               background: white !important; 
@@ -180,11 +180,11 @@ const AdminSupervisionMonitor: React.FC<Props> = ({ supervisions, users, student
           }
         `}</style>
 
-        <table className="print-table">
+        <table className="print-table w-full border-collapse" style={{ tableLayout: 'fixed' }}>
           <thead>
             <tr>
               <th colSpan={10} className="p-0 font-normal border-none text-right">
-                <div className="header-content w-full">
+                <div className="header-content w-full mb-3">
                   <OfficialHeader />
                   <div className="text-center mt-2">
                     <h2 className="text-[12pt] font-black border-b-[2pt] border-black pb-1 inline-block px-10 leading-none">مسير المراقبة ورصد حضور واستلام المظاريف</h2>
@@ -194,48 +194,49 @@ const AdminSupervisionMonitor: React.FC<Props> = ({ supervisions, users, student
                     </div>
                   </div>
                 </div>
-                
-                <div className="w-full mt-3 flex">
-                  <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
-                    <tr className="bg-slate-50 font-black text-[7.5pt]">
-                      <th className="cell-border" style={{ width: '8mm' }}>م</th>
-                      <th className="cell-border" style={{ width: '13mm' }}>اللجنة</th>
-                      <th className="cell-border text-right px-2" style={{ width: '45mm' }}>اسم المعلم (المراقب)</th>
-                      <th className="cell-border" style={{ width: '28mm' }}>الصف</th>
-                      <th className="cell-border" style={{ width: '11mm' }}>حاضر</th>
-                      <th className="cell-border" style={{ width: '11mm' }}>غائب</th>
-                      <th className="cell-border" style={{ width: '11mm' }}>متأخر</th>
-                      <th className="cell-border text-right px-2" style={{ width: '33mm' }}>المستلم (الكنترول)</th>
-                      <th className="cell-border" style={{ width: '22mm' }}>توقيع المستلم</th>
-                      <th className="cell-border" style={{ width: '22mm' }}>توقيع المراقب</th>
-                    </tr>
-                  </table>
-                </div>
               </th>
+            </tr>
+            <tr className="bg-slate-50 font-black text-[7.5pt]">
+              <th className="cell-border" style={{ width: '8mm' }}>م</th>
+              <th className="cell-border" style={{ width: '13mm' }}>اللجنة</th>
+              <th className="cell-border text-right px-2" style={{ width: '45mm' }}>اسم المعلم (المراقب)</th>
+              <th className="cell-border" style={{ width: '28mm' }}>الصف</th>
+              <th className="cell-border" style={{ width: '11mm' }}>حاضر</th>
+              <th className="cell-border" style={{ width: '11mm' }}>غائب</th>
+              <th className="cell-border" style={{ width: '11mm' }}>متأخر</th>
+              <th className="cell-border text-right px-2" style={{ width: '33mm' }}>المستلم (الكنترول)</th>
+              <th className="cell-border" style={{ width: '22mm' }}>توقيع المستلم</th>
+              <th className="cell-border" style={{ width: '22mm' }}>توقيع المراقب</th>
             </tr>
           </thead>
           
           <tbody>
-            <tr>
-              <td colSpan={10} className="p-0 border-none">
-                <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
-                  {detailedStats.map((stat, i) => (
-                    <tr key={i} className="h-[28pt]">
-                      <td className="cell-border tabular-nums" style={{ width: '8mm' }}>{i + 1}</td>
-                      <td className="cell-border font-black tabular-nums text-[9pt]" style={{ width: '13mm' }}>{stat.committee_number}</td>
-                      <td className="cell-border text-right font-black px-2 leading-tight" style={{ width: '45mm' }}>{stat.proctor_name}</td>
-                      <td className="cell-border font-bold" style={{ width: '28mm' }}>{stat.grade}</td>
-                      <td className="cell-border stat-cell" style={{ width: '11mm' }}>{stat.present}</td>
-                      <td className="cell-border stat-cell text-red-700" style={{ width: '11mm' }}>{stat.absent}</td>
-                      <td className="cell-border stat-cell" style={{ width: '11mm' }}>{stat.late}</td>
-                      <td className="cell-border text-right px-2 font-bold" style={{ width: '33mm' }}>{stat.isDone ? stat.receiver : ''}</td>
-                      <td className="cell-border" style={{ width: '22mm' }}></td>
-                      <td className="cell-border" style={{ width: '22mm' }}></td>
-                    </tr>
-                  ))}
-                </table>
-              </td>
-            </tr>
+            {detailedStats.map((stat, i) => (
+              <tr key={i} className="h-[28pt]">
+                <td className="cell-border tabular-nums" style={{ width: '8mm' }}>{i + 1}</td>
+                <td className="cell-border font-black tabular-nums text-[9pt]" style={{ width: '13mm' }}>{stat.committee_number}</td>
+                <td className="cell-border text-right font-black px-2 leading-tight" style={{ width: '45mm' }}>{stat.proctor_name}</td>
+                <td className="cell-border font-bold" style={{ width: '28mm', fontSize: '7pt' }}>{stat.grade}</td>
+                <td className="cell-border stat-cell text-emerald-700" style={{ width: '11mm' }}>{stat.present || '0'}</td>
+                <td className="cell-border stat-cell text-red-700" style={{ width: '11mm' }}>{stat.absent || '0'}</td>
+                <td className="cell-border stat-cell" style={{ width: '11mm' }}>{stat.late || '0'}</td>
+                <td className="cell-border text-right px-2 font-bold" style={{ width: '33mm' }}>{stat.isDone ? stat.receiver : ''}</td>
+                <td className="cell-border p-0" style={{ width: '22mm', textAlign: 'center', height: '18pt' }}>
+                   {stat.isDone && stat.receiver && (
+                     <div className="flex justify-center items-center w-full h-full">
+                       <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent('SIG|RECEIVER|' + stat.committee_number)}&color=000000`} alt="QR" className="w-[6mm] h-[6mm]" crossOrigin="anonymous" style={{ imageRendering: 'pixelated' }} />
+                     </div>
+                   )}
+                </td>
+                <td className="cell-border p-0" style={{ width: '22mm', textAlign: 'center', height: '18pt' }}>
+                   {stat.isDone && stat.proctor_name && (
+                     <div className="flex justify-center items-center w-full h-full">
+                       <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent('SIG|PROCTOR|' + stat.committee_number)}&color=000000`} alt="QR" className="w-[6mm] h-[6mm]" crossOrigin="anonymous" style={{ imageRendering: 'pixelated' }} />
+                     </div>
+                   )}
+                </td>
+              </tr>
+            ))}
           </tbody>
 
           <tfoot>

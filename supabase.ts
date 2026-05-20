@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { User, Student, Absence, Supervision, ControlRequest, DeliveryLog, SystemConfig, CommitteeReport } from './types';
+import { User, Student, Absence, Supervision, ControlRequest, DeliveryLog, SystemConfig, CommitteeReport, EnvelopeOpening } from './types';
 
 const supabaseUrl = 'https://upfavagxyuwnqmjgiibo.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVwZmF2YWd4eXV3bnFtamdpaWJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0MDQ0OTYsImV4cCI6MjA4MTk4MDQ5Nn0.AxsPO_Vw04aVuoa2KkFS_63OX1lz1yYthzBLLIkotuw';
@@ -185,6 +185,25 @@ export const db = {
         created_at: new Date().toISOString()
       }]);
       const err = handleError(error, "notifications.broadcast");
+      if (err) throw new Error(err);
+    }
+  },
+
+  envelopeOpenings: {
+    getAll: async () => {
+      const { data, error } = await supabase.from('envelope_openings').select('*');
+      const err = handleError(error, "envelopeOpenings.getAll");
+      if (err) throw new Error(err);
+      return (data || []) as EnvelopeOpening[];
+    },
+    upsert: async (envelope: Partial<EnvelopeOpening>) => {
+      const { error } = await supabase.from('envelope_openings').upsert([envelope], { onConflict: 'id' });
+      const err = handleError(error, "envelopeOpenings.upsert");
+      if (err) throw new Error(err);
+    },
+    delete: async (id: string) => {
+      const { error } = await supabase.from('envelope_openings').delete().eq('id', id);
+      const err = handleError(error, "envelopeOpenings.delete");
       if (err) throw new Error(err);
     }
   }
