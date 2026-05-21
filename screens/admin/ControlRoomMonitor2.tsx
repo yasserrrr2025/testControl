@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -49,6 +49,8 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
   const [now, setNow] = useState(new Date());
   const [scene, setScene] = useState<Scene>('overview');
   const [pinnedScene, setPinnedScene] = useState<Scene | null>(null);
+  const [priorityScene, setPriorityScene] = useState<{ scene: Scene; until: number; label: string } | null>(null);
+  const latestSeenRef = useRef({ request: '', absence: '', delivery: '' });
   const activeDate = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
@@ -57,12 +59,66 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
   }, []);
 
   useEffect(() => {
+    if (priorityScene && Date.now() < priorityScene.until) return;
     if (pinnedScene) return;
     const timer = setInterval(() => {
       setScene(prev => sceneOrder[(sceneOrder.indexOf(prev) + 1) % sceneOrder.length]);
     }, 14000);
     return () => clearInterval(timer);
-  }, [pinnedScene]);
+  }, [pinnedScene, priorityScene]);
+
+  useEffect(() => {
+    if (!priorityScene) return;
+    const remaining = priorityScene.until - Date.now();
+    if (remaining <= 0) {
+      setPriorityScene(null);
+      if (pinnedScene) setScene(pinnedScene);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setPriorityScene(null);
+      if (pinnedScene) setScene(pinnedScene);
+    }, remaining);
+    return () => clearTimeout(timer);
+  }, [pinnedScene, priorityScene]);
+
+  useEffect(() => {
+    const latestRequest = [...requests].sort((a, b) => b.time.localeCompare(a.time))[0];
+    const latestAbsence = [...absences].sort((a, b) => b.date.localeCompare(a.date))[0];
+    const latestDelivery = [...deliveryLogs].sort((a, b) => b.time.localeCompare(a.time))[0];
+
+    const seen = latestSeenRef.current;
+    if (!seen.request && !seen.absence && !seen.delivery) {
+      latestSeenRef.current = {
+        request: latestRequest?.id || '',
+        absence: latestAbsence?.id || '',
+        delivery: latestDelivery?.id || '',
+      };
+      return;
+    }
+
+    const showPriority = (nextScene: Scene, durationMs: number, label: string) => {
+      setScene(nextScene);
+      setPriorityScene({ scene: nextScene, until: Date.now() + durationMs, label });
+    };
+
+    if (latestRequest && latestRequest.id !== seen.request) {
+      latestSeenRef.current = { ...latestSeenRef.current, request: latestRequest.id };
+      showPriority('alerts', 12000, `بلاغ جديد من لجنة ${latestRequest.committee}`);
+      return;
+    }
+
+    if (latestAbsence && latestAbsence.id !== seen.absence) {
+      latestSeenRef.current = { ...latestSeenRef.current, absence: latestAbsence.id };
+      showPriority('attendance', 10000, `${getAbsenceKindLabel(latestAbsence.type)} جديد في لجنة ${latestAbsence.committee_number}`);
+      return;
+    }
+
+    if (latestDelivery && latestDelivery.id !== seen.delivery) {
+      latestSeenRef.current = { ...latestSeenRef.current, delivery: latestDelivery.id };
+      showPriority(latestDelivery.status === 'CONFIRMED' ? 'timeline' : 'map', 8000, `${latestDelivery.status === 'CONFIRMED' ? 'استلام جديد' : 'إغلاق جديد'} للجنة ${latestDelivery.committee_number}`);
+    }
+  }, [absences, deliveryLogs, requests]);
 
   const committees = useMemo(() => {
     const nums = Array.from(new Set(students.map(s => s.committee_number))).filter(Boolean).sort((a, b) => Number(a) - Number(b));
@@ -251,8 +307,14 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
 
           <div className="min-w-0 flex-1 px-4">
             <div className="mb-3 flex items-center justify-center gap-3 text-sm font-black text-slate-300">
-              <Radio size={18} className="animate-pulse text-emerald-300" />
-              <span>{pinnedScene ? `مثبت الآن على شاشة ${sceneLabels[pinnedScene]}` : 'عرض تلقائي متزامن مع اللجان والبلاغات والاستلام'}</span>
+              {priorityScene ? <BellRing size={18} className="animate-pulse text-orange-300" /> : <Radio size={18} className="animate-pulse text-emerald-300" />}
+              <span>
+                {priorityScene
+                  ? `${priorityScene.label} · يعود العرض تلقائيًا بعد قليل`
+                  : pinnedScene
+                    ? `مثبت الآن على شاشة ${sceneLabels[pinnedScene]}`
+                    : 'عرض تلقائي متزامن مع اللجان والبلاغات والاستلام'}
+              </span>
             </div>
             <div className="mx-auto mb-3 flex max-w-xl gap-2">
               <SceneBadge id="overview" label="المؤشرات" />
@@ -306,6 +368,18 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
             );
           })}
         </section>
+
+        {priorityScene && (
+          <div className="mb-4 flex items-center justify-between rounded-[1.8rem] border border-orange-300/30 bg-orange-500/15 px-6 py-3 text-orange-50 shadow-[0_0_28px_rgba(249,115,22,0.25)]">
+            <div className="flex items-center gap-3">
+              <BellRing size={22} className="animate-pulse text-orange-200" />
+              <p className="text-sm font-black">{priorityScene.label}</p>
+            </div>
+            <p className="text-[11px] font-black text-orange-200">
+              أولوية لحظية · ثم يكمل العرض {pinnedScene ? `إلى شاشة ${sceneLabels[pinnedScene]}` : 'التنقل التلقائي'}
+            </p>
+          </div>
+        )}
 
         <main className="min-h-0 flex-1">
           {scene === 'overview' && (
@@ -428,7 +502,7 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
                   </div>
                 </div>
                 <div className="space-y-4 overflow-hidden">
-                  {requests.length ? requests.slice(0, 6).map(req => (
+                  {[...requests].sort((a, b) => b.time.localeCompare(a.time)).length ? [...requests].sort((a, b) => b.time.localeCompare(a.time)).slice(0, 6).map(req => (
                     <div key={req.id} className={`rounded-[2rem] border p-5 ${req.status === 'DONE' ? 'border-white/10 bg-white/5 opacity-60' : 'border-red-300/30 bg-red-600/20'}`}>
                       <div className="mb-3 flex items-center justify-between">
                         <span className="rounded-2xl bg-slate-950 px-5 py-2 text-xl font-black">لجنة {req.committee}</span>
@@ -498,7 +572,7 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
               <div className="col-span-7 rounded-[3rem] border border-white/10 bg-white/[0.04] p-8 shadow-2xl">
                 <h3 className="mb-6 text-4xl font-black">آخر حالات الغياب والتأخير</h3>
                 <div className="space-y-4 overflow-hidden">
-                  {absences.length ? absences.slice(0, 7).map(a => {
+                  {[...absences].sort((a, b) => b.date.localeCompare(a.date)).length ? [...absences].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7).map(a => {
                     const receipt = getAbsenceReceipt(a);
                     return (
                       <div key={a.id} className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-[2rem] border border-white/10 bg-white/[0.04] p-5">
