@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Sparkles,
   Timer,
+  Trophy,
   Truck,
   UserCheck,
   UserX,

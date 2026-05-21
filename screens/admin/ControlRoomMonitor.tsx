@@ -7,7 +7,7 @@ import {
   Clock, CheckCircle2, Radio, Bell, Signal,
   MapPin, Users, Zap, X, AlertCircle, ChevronDown,
   ArrowDownToLine, Flame, Maximize2, Minimize2, MoveRight,
-  MonitorPlay, LayoutPanelTop, Truck
+  MonitorPlay, LayoutPanelTop, Truck, Trophy
 } from 'lucide-react';
 import { Supervision, Absence, DeliveryLog, User, Student, ControlRequest } from '../../types';
 import { getAbsenceKindLabel, getAbsenceReceipt } from '../../services/absenceReceipt';
