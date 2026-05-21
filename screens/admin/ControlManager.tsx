@@ -20,6 +20,7 @@ import {
 import { User, DeliveryLog, Student, UserRole, SystemConfig, Absence, Supervision, ControlRequest } from '../../types';
 import { ROLES_ARABIC } from '../../constants';
 import { supabase, db } from '../../supabase';
+import SmartProctorDistribution, { SmartDistributionItem } from './SmartProctorDistribution';
 
 interface ControlManagerProps {
   users: User[];
@@ -30,15 +31,17 @@ interface ControlManagerProps {
   systemConfig: SystemConfig & { allow_manual_join?: boolean, active_exam_date?: string };
   absences: Absence[];
   supervisions: Supervision[];
+  smartSupervisions?: Supervision[];
   requests?: ControlRequest[];
   setDeliveryLogs: (log: DeliveryLog) => Promise<void>;
   setSystemConfig: (cfg: any) => Promise<void>;
   onRemoveSupervision: (teacherId: string) => Promise<void>;
   onAssignProctor: (teacherId: string, committeeNumber: string) => Promise<void>;
+  onCommitSmartDistribution: (items: SmartDistributionItem[], replaceExisting: boolean) => Promise<void>;
 }
 
 const ControlManager: React.FC<ControlManagerProps> = ({ 
-  users, deliveryLogs, students, onBroadcast, onUpdateUserGrades, systemConfig, absences, supervisions, requests = [], setDeliveryLogs, setSystemConfig, onRemoveSupervision, onAssignProctor
+  users, deliveryLogs, students, onBroadcast, onUpdateUserGrades, systemConfig, absences, supervisions, smartSupervisions, requests = [], setDeliveryLogs, setSystemConfig, onRemoveSupervision, onAssignProctor, onCommitSmartDistribution
 }) => {
   const [activeTab, setActiveTab] = useState<'cockpit' | 'ops-center' | 'assignments' | 'emergency-receipt' | 'comms' | 'proctors-mgmt'>('cockpit');
   const [broadcastTarget, setBroadcastTarget] = useState<UserRole | 'ALL'>('ALL');
@@ -299,6 +302,14 @@ const ControlManager: React.FC<ControlManagerProps> = ({
       {/* Proctor Management Tab - Enhanced with Replacement System */}
       {activeTab === 'proctors-mgmt' && (
         <div className="space-y-8 animate-slide-up">
+           <SmartProctorDistribution
+             users={users}
+             students={students}
+             supervisions={smartSupervisions || supervisions}
+             activeDate={systemConfig.active_exam_date}
+             onCommit={onCommitSmartDistribution}
+           />
+
            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
               <div className="lg:col-span-1 bg-slate-950 p-8 rounded-[3.5rem] text-white shadow-2xl border-b-8 border-emerald-500 overflow-hidden relative">
                  <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-3xl"></div>

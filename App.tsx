@@ -14,6 +14,7 @@ import AdminProctorPerformance from './screens/admin/ProctorPerformance';
 import CommitteeLabelsPrint from './screens/admin/CommitteeLabelsPrint';
 import ControlHeadDashboard from './screens/admin/ControlHeadDashboard';
 import ControlManager from './screens/admin/ControlManager';
+import { SmartDistributionItem } from './screens/admin/SmartProctorDistribution';
 import ControlRoomMonitor from './screens/admin/ControlRoomMonitor';
 import ProctorDailyAssignmentFlow from './screens/proctor/DailyAssignmentFlow';
 import ProctorAlertsHistory from './screens/proctor/ProctorAlertsHistory';
@@ -41,6 +42,7 @@ const App: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [supervisions, setSupervisions] = useState<Supervision[]>([]);
+  const [allSupervisions, setAllSupervisions] = useState<Supervision[]>([]);
   const [absences, setAbsences] = useState<Absence[]>([]);
   const [notifications, setNotifications] = useState<{id: string, text: string, type: 'success' | 'error' | 'info' | 'warning'}[]>([]);
   const [controlRequests, setControlRequests] = useState<ControlRequest[]>([]);
@@ -80,6 +82,7 @@ const App: React.FC = () => {
       ]);
       setUsers(u);
       setStudents(s);
+      setAllSupervisions(sv);
       
       if (filterDate) {
         setSupervisions(sv.filter(i => i.date && i.date.startsWith(filterDate))); 
@@ -141,6 +144,95 @@ const App: React.FC = () => {
     localStorage.setItem('activeTab', defaultTab);
   };
 
+  const dayEnd = (date: string) => {
+    const [year, month, day] = date.split('-').map(Number);
+    const d = new Date(Date.UTC(year, (month || 1) - 1, day || 1));
+    d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString();
+  };
+
+  const handleCommitSmartDistribution = async (items: SmartDistributionItem[], replaceExisting: boolean) => {
+    if (!items.length) return;
+    const groupedSlots = Array.from(new Set(items.map(item => `${item.date}__${item.period}`)))
+      .map(key => {
+        const [date, period] = key.split('__');
+        return { date, period: Number(period) || 1 };
+      });
+
+    if (replaceExisting) {
+      for (const slot of groupedSlots) {
+        const { error } = await supabase
+          .from('supervision')
+          .delete()
+          .gte('date', `${slot.date}T00:00:00`)
+          .lt('date', dayEnd(slot.date))
+          .eq('period', slot.period);
+        if (error) throw new Error(error.message);
+      }
+    }
+
+    const existingKeys = new Set(
+      allSupervisions.map(s => {
+        const date = s.date?.slice(0, 10);
+        return `${date}__${s.period || 1}__${s.committee_number}`;
+      }),
+    );
+    const existingTeacherKeys = new Set(
+      allSupervisions.map(s => {
+        const date = s.date?.slice(0, 10);
+        return `${date}__${s.period || 1}__${s.teacher_id}`;
+      }),
+    );
+
+    const rows = items
+      .filter(item => {
+        if (replaceExisting) return true;
+        const committeeKey = `${item.date}__${item.period}__${item.committeeNumber}`;
+        const teacherKey = `${item.date}__${item.period}__${item.teacherId}`;
+        return !existingKeys.has(committeeKey) && !existingTeacherKeys.has(teacherKey);
+      })
+      .map(item => ({
+        id: crypto.randomUUID(),
+        teacher_id: item.teacherId,
+        committee_number: item.committeeNumber,
+        date: `${item.date}T00:00:00.000Z`,
+        period: item.period,
+        subject: item.subject || 'اختبار',
+      }));
+
+    if (!rows.length) {
+      addLocalNotification('لم يتم ربط أي لجنة جديدة لأن اللجان أو المراقبين مرتبطون مسبقاً. فعّل خيار إعادة التوزيع إذا أردت الاستبدال.', 'warning');
+      return;
+    }
+
+    const { error } = await supabase.from('supervision').insert(rows);
+    if (error) throw new Error(error.message);
+    await fetchData();
+    addLocalNotification(`تم اعتماد ${rows.length} ربط للمراقبين بنجاح.`, 'success');
+  };
+
+  const deleteSameDayTeacherAssignment = async (teacherId: string, date: string, period = 1) => {
+    const { error } = await supabase
+      .from('supervision')
+      .delete()
+      .eq('teacher_id', teacherId)
+      .gte('date', `${date}T00:00:00`)
+      .lt('date', dayEnd(date))
+      .eq('period', period);
+    if (error) throw new Error(error.message);
+  };
+
+  const deleteSameDayCommitteeAssignment = async (committeeNumber: string, date: string, period = 1) => {
+    const { error } = await supabase
+      .from('supervision')
+      .delete()
+      .eq('committee_number', committeeNumber)
+      .gte('date', `${date}T00:00:00`)
+      .lt('date', dayEnd(date))
+      .eq('period', period);
+    if (error) throw new Error(error.message);
+  };
+
   const renderContent = () => {
     if (!currentUser) return null;
     
@@ -166,7 +258,7 @@ const App: React.FC = () => {
       );
       case 'proctor-excellence': return <AdminProctorPerformance users={users} supervisions={supervisions} deliveryLogs={deliveryLogs} absences={absences} systemConfig={systemConfig} />;
       case 'committee-labels': return <CommitteeLabelsPrint students={students} />;
-      case 'control-manager': return <ControlManager users={users} deliveryLogs={deliveryLogs} students={students} requests={controlRequests} onBroadcast={(m, t) => db.notifications.broadcast(m, t, currentUser.full_name)} onUpdateUserGrades={async (userId, grades) => { const uMatch = users.find(u => u.id === userId); if (uMatch) { await db.users.upsert([{ ...uMatch, assigned_grades: grades }]); await fetchData(); } }} systemConfig={systemConfig} absences={absences} supervisions={supervisions} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} setSystemConfig={async (cfg) => { await db.config.upsert(cfg); await fetchData(); }} onRemoveSupervision={async (id) => { await db.supervision.deleteByTeacherId(id); await fetchData(); }} onAssignProctor={async (tid, cid) => { await db.supervision.deleteByTeacherId(tid); await db.supervision.insert({ id: crypto.randomUUID(), teacher_id: tid, committee_number: cid, date: new Date().toISOString(), period: 1, subject: 'اختبار' }); await fetchData(); }} />;
+      case 'control-manager': return <ControlManager users={users} deliveryLogs={deliveryLogs} students={students} requests={controlRequests} onBroadcast={(m, t) => db.notifications.broadcast(m, t, currentUser.full_name)} onUpdateUserGrades={async (userId, grades) => { const uMatch = users.find(u => u.id === userId); if (uMatch) { await db.users.upsert([{ ...uMatch, assigned_grades: grades }]); await fetchData(); } }} systemConfig={systemConfig} absences={absences} supervisions={supervisions} smartSupervisions={allSupervisions} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} setSystemConfig={async (cfg) => { await db.config.upsert(cfg); await fetchData(); }} onRemoveSupervision={async (id) => { await deleteSameDayTeacherAssignment(id, systemConfig.active_exam_date || new Date().toISOString().slice(0, 10)); await fetchData(); }} onAssignProctor={async (tid, cid) => { const date = systemConfig.active_exam_date || new Date().toISOString().slice(0, 10); await deleteSameDayTeacherAssignment(tid, date); await deleteSameDayCommitteeAssignment(cid, date); await db.supervision.insert({ id: crypto.randomUUID(), teacher_id: tid, committee_number: cid, date: new Date().toISOString(), period: 1, subject: 'اختبار' }); await fetchData(); }} onCommitSmartDistribution={handleCommitSmartDistribution} />;
       case 'teachers': return <AdminUsersManager users={users} setUsers={async (u: any) => { await db.users.upsert(typeof u === 'function' ? u(users) : u); await fetchData(); }} students={students} onDeleteUser={async (id: string) => { if(confirm('حذف؟')) { await db.users.delete(id); await fetchData(); } }} onAlert={addLocalNotification} />;
       case 'students': return <AdminStudentsManager students={students} setStudents={async (s: any) => { await db.students.upsert(typeof s === 'function' ? s(students) : s); await fetchData(); }} onDeleteStudent={async (id: string) => { if(confirm('حذف؟')) { await db.students.delete(id); await fetchData(); } }} onAlert={addLocalNotification} />;
       case 'committees': return <AdminSupervisionMonitor supervisions={supervisions} users={users} students={students} absences={absences} deliveryLogs={deliveryLogs} />;

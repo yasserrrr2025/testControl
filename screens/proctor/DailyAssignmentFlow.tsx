@@ -46,7 +46,7 @@ import {
   Bell,
   Package,
 } from "lucide-react";
-import { db } from "../../supabase";
+import { db, supabase } from "../../supabase";
 import { APP_CONFIG, ROLES_ARABIC } from "../../constants";
 
 interface Props {
@@ -128,6 +128,51 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({
   );
 
   const activeCommittee = activeAssignment?.committee_number || null;
+  const [confirmedAssignments, setConfirmedAssignments] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`confirmed_assignments_${user.id}`) || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [assignmentStartTimes, setAssignmentStartTimes] = useState<Record<string, string>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`assignment_start_times_${user.id}`) || '{}');
+    } catch {
+      return {};
+    }
+  });
+  const activeAssignmentConfirmed = !!activeAssignment && confirmedAssignments.includes(activeAssignment.id);
+  const activeAssignmentStartTime = activeAssignment
+    ? assignmentStartTimes[activeAssignment.id] || activeAssignment.date
+    : null;
+
+  const markAssignmentStarted = (assignmentId: string, startedAt: string) => {
+    const nextConfirmed = Array.from(new Set([...confirmedAssignments, assignmentId]));
+    const nextStartTimes = { ...assignmentStartTimes, [assignmentId]: startedAt };
+    setConfirmedAssignments(nextConfirmed);
+    setAssignmentStartTimes(nextStartTimes);
+    localStorage.setItem(`confirmed_assignments_${user.id}`, JSON.stringify(nextConfirmed));
+    localStorage.setItem(`assignment_start_times_${user.id}`, JSON.stringify(nextStartTimes));
+  };
+
+  const confirmActiveAssignment = async () => {
+    if (!activeAssignment) return;
+    const startedAt = new Date().toISOString();
+    try {
+      const { error } = await supabase
+        .from('supervision')
+        .update({ date: startedAt })
+        .eq('id', activeAssignment.id);
+      if (error) throw new Error(error.message);
+      markAssignmentStarted(activeAssignment.id, startedAt);
+      setElapsedTime('00:00');
+      await setSupervisions();
+      onAlert(`تم تأكيد المباشرة في اللجنة رقم ${activeAssignment.committee_number}`, 'success');
+    } catch (err: any) {
+      onAlert(err.message || 'تعذر تأكيد المباشرة', 'error');
+    }
+  };
 
   const myActiveRequests = useMemo(
     () =>
@@ -143,8 +188,8 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({
   );
 
   useEffect(() => {
-    if (!activeAssignment?.date) return;
-    const startTime = new Date(activeAssignment.date).getTime();
+    if (!activeAssignmentStartTime) return;
+    const startTime = new Date(activeAssignmentStartTime).getTime();
     
     const updateTimer = () => {
       const now = new Date().getTime();
@@ -164,7 +209,7 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
-  }, [activeAssignment?.date]);
+  }, [activeAssignmentStartTime]);
 
   /* ── مراقبة الاتصال بالإنترنت ── */
   useEffect(() => {
@@ -272,15 +317,19 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({
     if (!cleanedNum || isJoining) return;
     setIsJoining(true);
     try {
+      const assignmentId = crypto.randomUUID();
+      const startedAt = new Date().toISOString();
       await db.supervision.deleteByTeacherId(user.id);
       await db.supervision.insert({
-        id: crypto.randomUUID(),
+        id: assignmentId,
         teacher_id: user.id,
         committee_number: cleanedNum,
-        date: new Date().toISOString(),
+        date: startedAt,
         period: 1,
         subject: "اختبار",
       });
+      markAssignmentStarted(assignmentId, startedAt);
+      setElapsedTime('00:00');
       await setSupervisions();
       onAlert(`تمت المباشرة في اللجنة ${cleanedNum}`, "success");
     } catch (err: any) {
@@ -489,6 +538,50 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({
   }
 
   // واجهة النجاح والقفل (وثيقة الإنجاز + سجل المطابقة)
+  if (activeAssignment && !activeAssignmentConfirmed) {
+    return (
+      <div className="max-w-4xl mx-auto py-10 px-4 space-y-8 animate-fade-in text-center">
+        <div className="bg-slate-950 p-10 rounded-[4rem] text-white shadow-2xl relative overflow-hidden border-b-[10px] border-emerald-500">
+          <div className="absolute inset-0 bg-emerald-500/10"></div>
+          <div className="relative z-10 flex flex-col items-center gap-8">
+            <div className="w-28 h-28 bg-emerald-500 text-white rounded-[2.5rem] flex flex-col items-center justify-center font-black shadow-2xl">
+              <span className="text-[10px] opacity-70 mb-1">اللجنة</span>
+              <span className="text-6xl leading-none">{activeAssignment.committee_number}</span>
+            </div>
+            <div>
+              <h2 className="text-4xl md:text-5xl font-black tracking-tighter">تم إسناد اللجنة رقم {activeAssignment.committee_number}</h2>
+              <p className="text-emerald-100 font-bold text-lg mt-4">يرجى تأكيد المباشرة قبل الدخول إلى شاشة الرصد.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-10 rounded-[3.5rem] shadow-2xl border border-slate-100">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-right mb-8">
+            <div className="p-5 rounded-2xl bg-slate-50">
+              <p className="text-[10px] font-black text-slate-400">اسم المراقب</p>
+              <p className="font-black text-slate-900 mt-1">{user.full_name}</p>
+            </div>
+            <div className="p-5 rounded-2xl bg-slate-50">
+              <p className="text-[10px] font-black text-slate-400">المادة</p>
+              <p className="font-black text-slate-900 mt-1">{activeAssignment.subject || 'اختبار'}</p>
+            </div>
+            <div className="p-5 rounded-2xl bg-slate-50">
+              <p className="text-[10px] font-black text-slate-400">الفترة</p>
+              <p className="font-black text-slate-900 mt-1">{activeAssignment.period || 1}</p>
+            </div>
+          </div>
+          <button
+            onClick={confirmActiveAssignment}
+            className="w-full p-8 bg-emerald-600 text-white rounded-[2.5rem] font-black text-2xl shadow-2xl hover:bg-emerald-700 transition-all flex items-center justify-center gap-4 active:scale-95"
+          >
+            <UserCheck size={32} />
+            تأكيد المباشرة
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (isCommitteeFinished) {
     const committeeLogs = deliveryLogs.filter(
       (l) =>
