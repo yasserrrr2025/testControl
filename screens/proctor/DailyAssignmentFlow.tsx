@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 import { db, supabase } from "../../supabase";
 import { APP_CONFIG, ROLES_ARABIC } from "../../constants";
+import { getAbsenceReceipt } from "../../services/absenceReceipt";
 
 interface Props {
   user: User;
@@ -1155,6 +1156,7 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({
           const status = myAbsences.find((a) => a.student_id === s.national_id);
           const isAbsent = status?.type === "ABSENT";
           const isLate = status?.type === "LATE";
+          const receipt = getAbsenceReceipt(status);
           return (
             <div
               key={s.id}
@@ -1190,6 +1192,13 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({
                     جلوس: {s.seating_number || '-'}
                   </span>
                 </div>
+                {status && (
+                  <div className={`rounded-2xl border px-4 py-3 text-[10px] font-black ${receipt ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
+                    {receipt
+                      ? `تم استلام الغياب بواسطة ${receipt.role}: ${receipt.by}`
+                      : 'بانتظار استلام الغياب من الموجه/مساعد الكنترول'}
+                  </div>
+                )}
               </div>
               <div className="relative z-10 grid grid-cols-2 gap-3 mt-8">
                 <button

@@ -173,11 +173,11 @@ const AdminUsersManager: React.FC<Props> = ({ users, setUsers, onAlert, students
                 </button>
               </div>
             </div>
-            {(u.role === 'ASSISTANT_CONTROL' || u.role === 'CONTROL') && (
+            {(u.role === 'ASSISTANT_CONTROL' || u.role === 'CONTROL' || u.role === 'COUNSELOR') && (
               <div className="bg-blue-50/30 p-8 rounded-[2.5rem] border border-blue-100/50">
-                <h5 className="font-black text-slate-800 text-xl mb-6 flex items-center gap-3"><Layers size={20} className="text-blue-600"/> {u.role === 'ASSISTANT_CONTROL' ? 'إسناد لجان المساعد' : 'إسناد صفوف الكنترول'}</h5>
+                <h5 className="font-black text-slate-800 text-xl mb-6 flex items-center gap-3"><Layers size={20} className="text-blue-600"/> {u.role === 'ASSISTANT_CONTROL' ? 'إسناد لجان المساعد' : u.role === 'COUNSELOR' ? 'إسناد صفوف الموجه الطلابي' : 'إسناد صفوف الكنترول'}</h5>
                 <div className="flex flex-wrap gap-3">
-                  {u.role === 'CONTROL' ? (
+                  {(u.role === 'CONTROL' || u.role === 'COUNSELOR') ? (
                     availableGrades.map(grade => {
                       const isAssigned = u.assigned_grades?.includes(grade);
                       return <button key={grade} onClick={() => toggleGrade(u.id, grade)} className={`px-6 py-3 rounded-2xl font-black text-sm transition-all border-2 ${isAssigned ? 'bg-emerald-600 text-white border-emerald-600 shadow-xl' : 'bg-white text-slate-400 border-slate-100 hover:border-emerald-200'}`}>{isAssigned ? <Check size={16} className="inline ml-2"/> : <Plus size={16} className="inline ml-2"/>}{grade}</button>;

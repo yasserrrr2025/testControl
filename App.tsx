@@ -28,6 +28,7 @@ import EnvelopeLabelsPrint from './screens/admin/EnvelopeLabelsPrint';
 import DoorLabelsPrint from './screens/admin/DoorLabelsPrint';
 import CommitteePublicView from './screens/public/CommitteePublicView';
 import StudentCommitteeInquiry from './screens/public/StudentCommitteeInquiry';
+import { buildAbsenceReceiptNote } from './services/absenceReceipt';
 import GlobalQRScanner from './components/GlobalQRScanner';
 import { BellRing, Menu, X, CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2 } from 'lucide-react';
 import { db, supabase } from './supabase';
@@ -211,6 +212,18 @@ const App: React.FC = () => {
     addLocalNotification(`تم اعتماد ${rows.length} ربط للمراقبين بنجاح.`, 'success');
   };
 
+  const acknowledgeAbsenceReceipt = async (absence: Absence, receiver: User) => {
+    await db.absences.upsert({
+      ...absence,
+      note: buildAbsenceReceiptNote(
+        receiver.full_name,
+        receiver.role === 'COUNSELOR' ? 'الموجه الطلابي' : 'مساعد الكنترول'
+      )
+    });
+    await fetchData();
+    addLocalNotification(`تم تأكيد استلام غياب الطالب ${absence.student_name}`, 'success');
+  };
+
   const deleteSameDayTeacherAssignment = async (teacherId: string, date: string, period = 1) => {
     const { error } = await supabase
       .from('supervision')
@@ -265,12 +278,12 @@ const App: React.FC = () => {
       case 'daily-reports': return <AdminDailyReports supervisions={supervisions} users={users} students={students} deliveryLogs={deliveryLogs} systemConfig={systemConfig} committeeReports={committeeReports} />;
       case 'official-forms': return <AdminOfficialForms absences={absences} students={students} supervisions={supervisions} users={users} />;
       case 'settings': return <AdminSystemSettings systemConfig={systemConfig} setSystemConfig={async (cfg) => { await db.config.upsert(cfg); await fetchData(); }} resetFunctions={{ students: async () => { if(confirm('حذف الطلاب؟')) { await supabase.from('students').delete().neq('id', '0'); await fetchData(); } }, teachers: async () => { if(confirm('حذف المعلمين؟')) { await supabase.from('users').delete().neq('role', 'ADMIN'); await fetchData(); } }, operations: async () => { if(confirm('تصفير سجلات اليوم؟')) { await supabase.from('absences').delete().gte('date', systemConfig.active_exam_date); await supabase.from('delivery_logs').delete().gte('time', systemConfig.active_exam_date); await fetchData(); } }, fullReset: () => {} }} onAlert={addLocalNotification} />;
-      case 'assigned-requests': return <AssistantControlView user={currentUser} requests={controlRequests} setRequests={fetchData} absences={absences} students={students} users={users} onAlert={addLocalNotification} />;
+      case 'assigned-requests': return <AssistantControlView user={currentUser} requests={controlRequests} setRequests={fetchData} absences={absences} students={students} users={users} onAlert={addLocalNotification} onAcknowledgeAbsence={(absence) => acknowledgeAbsenceReceipt(absence, currentUser)} />;
       case 'paper-logs': return <ControlReceiptView user={currentUser} students={students} absences={absences} deliveryLogs={deliveryLogs} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} supervisions={supervisions} users={users} controlRequests={controlRequests} setControlRequests={fetchData} systemConfig={systemConfig} onAlert={addLocalNotification} />;
       case 'receipt-history': return <ReceiptLogsView deliveryLogs={deliveryLogs} users={users} />;
       case 'digital-id': return <TeacherBadgeView user={currentUser} />;
       case 'proctor-alerts': return <ProctorAlertsHistory requests={controlRequests} userFullName={currentUser.full_name} deliveryLogs={deliveryLogs} supervisions={supervisions} systemConfig={systemConfig} />;
-      case 'student-absences': return <CounselorAbsenceMonitor absences={absences} students={students} supervisions={supervisions} users={users} />;
+      case 'student-absences': return <CounselorAbsenceMonitor user={currentUser} absences={absences} students={students} supervisions={supervisions} users={users} onAcknowledgeAbsence={(absence) => acknowledgeAbsenceReceipt(absence, currentUser)} />;
       case 'my-tasks': return <ProctorDailyAssignmentFlow user={currentUser} supervisions={supervisions} setSupervisions={fetchData} students={students} absences={absences} setAbsences={fetchData} deliveryLogs={deliveryLogs} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} sendRequest={async (txt, com) => { await db.controlRequests.insert({ from: currentUser.full_name, committee: com, text: txt, time: new Date().toISOString(), status: 'PENDING' }); await fetchData(); }} controlRequests={controlRequests} users={users} systemConfig={systemConfig} committeeReports={committeeReports} onReportUpsert={async (report) => { await db.committeeReports.upsert(report); await fetchData(); }} onAlert={addLocalNotification} />;
       case 'envelope-opening': return <EnvelopeOpeningView user={currentUser} systemConfig={systemConfig} users={users} />;
       case 'envelope-labels': return <EnvelopeLabelsPrint students={students} />;

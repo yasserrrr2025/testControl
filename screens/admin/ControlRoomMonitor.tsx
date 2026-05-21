@@ -10,6 +10,7 @@ import {
   MonitorPlay, LayoutPanelTop, Truck
 } from 'lucide-react';
 import { Supervision, Absence, DeliveryLog, User, Student, ControlRequest } from '../../types';
+import { getAbsenceReceipt } from '../../services/absenceReceipt';
 
 interface Props {
   absences: Absence[];
@@ -205,26 +206,34 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
                   <th className="py-4 px-6">اللجنة</th>
                   <th className="py-4 px-6">الصف</th>
                   <th className="py-4 px-6">الحالة</th>
+                  <th className="py-4 px-6">الاستلام</th>
                   <th className="py-4 px-6 text-left">الوقت</th>
                 </tr>
              </thead>
              <tbody className="divide-y divide-white/5">
                 {absences.length === 0 ? (
-                  <tr><td colSpan={5} className="py-20 text-center text-slate-600 font-black text-xl opacity-70">لا توجد غيابات مرصودة لهذا اليوم</td></tr>
+                  <tr><td colSpan={6} className="py-20 text-center text-slate-600 font-black text-xl opacity-70">لا توجد غيابات مرصودة لهذا اليوم</td></tr>
                 ) : (
                   absences.map(a => {
                     const student = students.find(s => s.national_id === a.student_id);
+                    const receipt = getAbsenceReceipt(a);
                     return (
                       <tr key={a.id} className={`${isFull ? 'text-2xl h-24' : 'text-base'} hover:bg-white/[0.02]`}>
                          <td className="py-5 px-6 font-black text-white">{a.student_name}</td>
                          <td className="py-5 px-6 font-black text-slate-300">لجنة {a.committee_number}</td>
                          <td className="py-5 px-6 font-bold text-slate-400">{student?.grade}</td>
-                         <td className="py-5 px-6">
-                            <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black ${a.type === 'ABSENT' ? 'bg-red-500' : 'bg-amber-500'} text-white`}>
-                               {a.type === 'ABSENT' ? 'غائب' : 'متأخر'}
-                            </span>
+                          <td className="py-5 px-6">
+                             <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black ${a.type === 'ABSENT' ? 'bg-red-500' : 'bg-amber-500'} text-white`}>
+                                {a.type === 'ABSENT' ? 'غائب' : 'متأخر'}
+                             </span>
+                           </td>
+                          <td className="py-5 px-6">
+                            <div className={`inline-flex flex-col rounded-2xl px-4 py-2 font-black ${receipt ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/20' : 'bg-orange-500/15 text-orange-300 border border-orange-400/20 animate-pulse'}`}>
+                              <span className="text-[10px]">{receipt ? 'تم استلام الغياب' : 'بانتظار الاستلام'}</span>
+                              {receipt && <span className="mt-1 text-[9px] opacity-80">{receipt.role}</span>}
+                            </div>
                           </td>
-                         <td className="py-5 px-6 text-left font-black text-orange-300 font-mono">
+                          <td className="py-5 px-6 text-left font-black text-orange-300 font-mono">
                            {new Date(a.date).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'})}
                          </td>
                       </tr>
