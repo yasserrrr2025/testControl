@@ -73,9 +73,10 @@ const AssistantControlView: React.FC<Props> = ({
     if (!soundEnabled) return;
     if (urgentCount > prevUrgentCount.current) {
       playAlert('alert');
+      onAlert(`بلاغ جديد في نطاق عملك: ${urgentCount} بلاغ معلق`, 'warning');
     }
     prevUrgentCount.current = urgentCount;
-  }, [urgentCount, soundEnabled]);
+  }, [urgentCount, soundEnabled, onAlert, playAlert]);
 
   const myCommitteeAbsences = useMemo(() => {
     return absences.filter(a => user.assigned_committees?.includes(a.committee_number));

@@ -29,6 +29,13 @@ import DoorLabelsPrint from './screens/admin/DoorLabelsPrint';
 import CommitteePublicView from './screens/public/CommitteePublicView';
 import StudentCommitteeInquiry from './screens/public/StudentCommitteeInquiry';
 import { buildAbsenceReceiptNote, getAbsenceKindLabel } from './services/absenceReceipt';
+import {
+  BrowserNotificationPermission,
+  getBrowserNotificationPermission,
+  registerAppServiceWorker,
+  requestBrowserNotificationPermission,
+  showBrowserNotification
+} from './services/browserNotifications';
 import GlobalQRScanner from './components/GlobalQRScanner';
 import { BellRing, Menu, X, CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2 } from 'lucide-react';
 import { db, supabase } from './supabase';
@@ -46,6 +53,7 @@ const App: React.FC = () => {
   const [allSupervisions, setAllSupervisions] = useState<Supervision[]>([]);
   const [absences, setAbsences] = useState<Absence[]>([]);
   const [notifications, setNotifications] = useState<{id: string, text: string, type: 'success' | 'error' | 'info' | 'warning'}[]>([]);
+  const [browserNotificationPermission, setBrowserNotificationPermission] = useState<BrowserNotificationPermission>('unsupported');
   const [controlRequests, setControlRequests] = useState<ControlRequest[]>([]);
   const [deliveryLogs, setDeliveryLogs] = useState<DeliveryLog[]>([]);
   const [committeeReports, setCommitteeReports] = useState<CommitteeReport[]>([]);
@@ -61,7 +69,26 @@ const App: React.FC = () => {
     const id = Math.random().toString(36).substr(2, 9);
     const msg = typeof input === 'string' ? input : (input?.message || "تنبيه جديد من النظام");
     setNotifications(prev => [{ id, text: msg, type }, ...prev]);
+    if (type === 'error' || type === 'warning' || type === 'info') {
+      showBrowserNotification('كنترول الاختبارات', msg);
+    }
     setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 5000);
+  };
+
+  useEffect(() => {
+    registerAppServiceWorker();
+    setBrowserNotificationPermission(getBrowserNotificationPermission());
+  }, []);
+
+  const enableBrowserNotifications = async () => {
+    const permission = await requestBrowserNotificationPermission();
+    setBrowserNotificationPermission(permission);
+    if (permission === 'granted') {
+      await showBrowserNotification('تم تفعيل الإشعارات', 'ستظهر التنبيهات المهمة على شاشة الجهاز عند فتح التطبيق أو عمله في الخلفية.');
+      addLocalNotification('تم تفعيل إشعارات الجوال بنجاح.', 'success');
+    } else if (permission === 'denied') {
+      addLocalNotification('تم منع الإشعارات من المتصفح. فعّلها من إعدادات الموقع.', 'warning');
+    }
   };
 
   const fetchData = useCallback(async () => {
@@ -401,6 +428,21 @@ const App: React.FC = () => {
     <div id="app-root" className="min-h-screen bg-[#f8fafc] font-['Tajawal'] overflow-x-hidden text-right selection:bg-blue-100" dir="rtl">
       {/* التنبيهات الذكية */}
       <div className="fixed top-24 left-6 right-6 lg:right-auto lg:left-8 z-[1000] flex flex-col gap-3 max-w-sm pointer-events-none no-print">
+        {currentUser && browserNotificationPermission === 'default' && (
+          <button
+            onClick={enableBrowserNotifications}
+            className="pointer-events-auto p-4 rounded-2xl shadow-2xl flex items-center gap-4 bg-slate-950 text-white border-r-[6px] border-blue-500 text-right"
+          >
+            <BellRing size={22} className="text-blue-300 shrink-0" />
+            <span className="font-black text-[11px] lg:text-sm">تفعيل إشعارات الجوال والتنبيهات</span>
+          </button>
+        )}
+        {currentUser && browserNotificationPermission === 'denied' && (
+          <div className="pointer-events-auto p-4 rounded-2xl shadow-2xl flex items-center gap-4 bg-amber-50 text-amber-900 border-r-[6px] border-amber-500">
+            <AlertTriangle size={22} className="shrink-0" />
+            <p className="font-black text-[11px] lg:text-sm">الإشعارات ممنوعة من إعدادات المتصفح.</p>
+          </div>
+        )}
         {notifications.map(n => (
           <div key={n.id} className={`p-4 rounded-2xl shadow-2xl flex items-center gap-4 animate-slide-in pointer-events-auto border-r-[6px] ${
             n.type === 'success' ? 'bg-emerald-50 border-emerald-500 text-emerald-900' :
