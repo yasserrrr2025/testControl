@@ -69,7 +69,7 @@ const SupervisionVerification: React.FC<Props> = ({ supervisions, users, student
 
     return {
       supervision,
-      proctorName: receiptLog?.proctor_name || proctor?.full_name || 'غير محدد',
+      proctorName: proctor?.full_name || receiptLog?.proctor_name || 'غير محدد',
       receiverName: receiptLog?.teacher_name || 'لم يتم الاستلام بعد',
       total: gradeStudents.length,
       present: Math.max(gradeStudents.length - absent.length, 0),
@@ -84,6 +84,9 @@ const SupervisionVerification: React.FC<Props> = ({ supervisions, users, student
 
   const signerLabel = type === 'receiver' ? 'المستلم' : 'المراقب';
   const signerName = type === 'receiver' ? record.receiverName : record.proctorName;
+  const verificationHint = type === 'receiver'
+    ? 'هذا الرمز يخص خانة توقيع المستلم ويثبت بيانات استلام الكنترول للمظروف.'
+    : 'هذا الرمز يخص خانة توقيع المراقب ويثبت بيانات مراقب اللجنة وإغلاقها.';
 
   const timeline = [
     { label: 'وقت دخول اللجنة', value: formatTime(record.startTime), icon: DoorOpen, tone: 'bg-blue-50 text-blue-700 border-blue-100' },
@@ -108,8 +111,9 @@ const SupervisionVerification: React.FC<Props> = ({ supervisions, users, student
                 <p className="text-slate-300 font-bold">مسير المراقبة واستلام المظاريف - {formatDate(date)}</p>
               </div>
               <div className="bg-white/10 border border-white/10 rounded-[2rem] p-5 min-w-52">
-                <p className="text-xs text-slate-300 font-black mb-2">نوع التحقق</p>
+                <p className="text-xs text-slate-300 font-black mb-2">الرمز يخص</p>
                 <p className="text-2xl font-black">{signerLabel}</p>
+                <p className="text-[11px] font-bold text-slate-300 mt-2 leading-5">{verificationHint}</p>
               </div>
             </div>
           </div>
