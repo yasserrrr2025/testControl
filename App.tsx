@@ -82,6 +82,27 @@ const App: React.FC = () => {
         db.committeeReports.getAll(),
       ]);
       setUsers(u);
+      const savedUser = localStorage.getItem('currentUser');
+      if (savedUser) {
+        try {
+          const cachedUser = JSON.parse(savedUser) as User;
+          const freshUser = u.find(user => user.id === cachedUser.id || user.national_id === cachedUser.national_id);
+          if (freshUser) {
+            setCurrentUser(freshUser);
+            localStorage.setItem('currentUser', JSON.stringify(freshUser));
+          } else {
+            setCurrentUser(null);
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('activeTab');
+            setActiveTab('');
+          }
+        } catch {
+          setCurrentUser(null);
+          localStorage.removeItem('currentUser');
+          localStorage.removeItem('activeTab');
+          setActiveTab('');
+        }
+      }
       setStudents(s);
       setAllSupervisions(sv);
       
@@ -224,6 +245,42 @@ const App: React.FC = () => {
     addLocalNotification(`تم تأكيد استلام غياب الطالب ${absence.student_name}`, 'success');
   };
 
+  const saveUsersOptimistic = async (nextOrUpdater: User[] | ((prev: User[]) => User[])) => {
+    const previousUsers = users;
+    const nextUsers = typeof nextOrUpdater === 'function'
+      ? nextOrUpdater(previousUsers)
+      : nextOrUpdater;
+
+    const changedUsers = nextUsers.filter(next => {
+      const prev = previousUsers.find(user => user.id === next.id);
+      return !prev || JSON.stringify(prev) !== JSON.stringify(next);
+    });
+
+    setUsers(nextUsers);
+
+    const refreshedCurrentUser = currentUser
+      ? nextUsers.find(user => user.id === currentUser.id) || currentUser
+      : null;
+
+    if (refreshedCurrentUser && currentUser && JSON.stringify(refreshedCurrentUser) !== JSON.stringify(currentUser)) {
+      setCurrentUser(refreshedCurrentUser);
+      localStorage.setItem('currentUser', JSON.stringify(refreshedCurrentUser));
+    }
+
+    try {
+      if (changedUsers.length > 0) {
+        await db.users.upsert(changedUsers);
+      }
+    } catch (error: any) {
+      setUsers(previousUsers);
+      if (currentUser) {
+        setCurrentUser(currentUser);
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+      }
+      addLocalNotification(error.message || 'تعذر حفظ الصلاحيات، تمت إعادة الحالة السابقة.', 'error');
+    }
+  };
+
   const deleteSameDayTeacherAssignment = async (teacherId: string, date: string, period = 1) => {
     const { error } = await supabase
       .from('supervision')
@@ -272,7 +329,7 @@ const App: React.FC = () => {
       case 'proctor-excellence': return <AdminProctorPerformance users={users} supervisions={supervisions} deliveryLogs={deliveryLogs} absences={absences} systemConfig={systemConfig} />;
       case 'committee-labels': return <CommitteeLabelsPrint students={students} />;
       case 'control-manager': return <ControlManager users={users} deliveryLogs={deliveryLogs} students={students} requests={controlRequests} onBroadcast={(m, t) => db.notifications.broadcast(m, t, currentUser.full_name)} onUpdateUserGrades={async (userId, grades) => { const uMatch = users.find(u => u.id === userId); if (uMatch) { await db.users.upsert([{ ...uMatch, assigned_grades: grades }]); await fetchData(); } }} systemConfig={systemConfig} absences={absences} supervisions={supervisions} smartSupervisions={allSupervisions} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} setSystemConfig={async (cfg) => { await db.config.upsert(cfg); await fetchData(); }} onRemoveSupervision={async (id) => { await deleteSameDayTeacherAssignment(id, systemConfig.active_exam_date || new Date().toISOString().slice(0, 10)); await fetchData(); }} onAssignProctor={async (tid, cid) => { const date = systemConfig.active_exam_date || new Date().toISOString().slice(0, 10); await deleteSameDayTeacherAssignment(tid, date); await deleteSameDayCommitteeAssignment(cid, date); await db.supervision.insert({ id: crypto.randomUUID(), teacher_id: tid, committee_number: cid, date: new Date().toISOString(), period: 1, subject: 'اختبار' }); await fetchData(); }} onCommitSmartDistribution={handleCommitSmartDistribution} />;
-      case 'teachers': return <AdminUsersManager users={users} setUsers={async (u: any) => { await db.users.upsert(typeof u === 'function' ? u(users) : u); await fetchData(); }} students={students} onDeleteUser={async (id: string) => { if(confirm('حذف؟')) { await db.users.delete(id); await fetchData(); } }} onAlert={addLocalNotification} />;
+      case 'teachers': return <AdminUsersManager users={users} setUsers={saveUsersOptimistic} students={students} onDeleteUser={async (id: string) => { if(confirm('حذف؟')) { await db.users.delete(id); await fetchData(); } }} onAlert={addLocalNotification} />;
       case 'students': return <AdminStudentsManager students={students} setStudents={async (s: any) => { await db.students.upsert(typeof s === 'function' ? s(students) : s); await fetchData(); }} onDeleteStudent={async (id: string) => { if(confirm('حذف؟')) { await db.students.delete(id); await fetchData(); } }} onAlert={addLocalNotification} />;
       case 'committees': return <AdminSupervisionMonitor supervisions={supervisions} users={users} students={students} absences={absences} deliveryLogs={deliveryLogs} />;
       case 'daily-reports': return <AdminDailyReports supervisions={supervisions} users={users} students={students} deliveryLogs={deliveryLogs} systemConfig={systemConfig} committeeReports={committeeReports} />;
