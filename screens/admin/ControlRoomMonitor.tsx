@@ -10,7 +10,7 @@ import {
   MonitorPlay, LayoutPanelTop, Truck
 } from 'lucide-react';
 import { Supervision, Absence, DeliveryLog, User, Student, ControlRequest } from '../../types';
-import { getAbsenceReceipt } from '../../services/absenceReceipt';
+import { getAbsenceKindLabel, getAbsenceReceipt } from '../../services/absenceReceipt';
 
 interface Props {
   absences: Absence[];
@@ -229,8 +229,9 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
                            </td>
                           <td className="py-5 px-6">
                             <div className={`inline-flex flex-col rounded-2xl px-4 py-2 font-black ${receipt ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/20' : 'bg-orange-500/15 text-orange-300 border border-orange-400/20 animate-pulse'}`}>
-                              <span className="text-[10px]">{receipt ? 'تم استلام الغياب' : 'بانتظار الاستلام'}</span>
-                              {receipt && <span className="mt-1 text-[9px] opacity-80">{receipt.role}</span>}
+                              <span className="text-[10px]">{receipt ? `تم استلام ${getAbsenceKindLabel(a.type)}` : `بانتظار استلام ${getAbsenceKindLabel(a.type)}`}</span>
+                              {receipt && <span className="mt-1 text-[9px] opacity-80">{receipt.role}: {receipt.by}</span>}
+                              {receipt && <span className="mt-1 text-[9px] opacity-70">{new Date(receipt.at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}</span>}
                             </div>
                           </td>
                           <td className="py-5 px-6 text-left font-black text-orange-300 font-mono">

@@ -11,7 +11,7 @@ import {
 import { db } from '../../supabase';
 import TeacherBadgeView from '../proctor/TeacherBadgeView';
 import { useNotificationSound } from '../../hooks/useNotificationSound';
-import { getAbsenceReceipt } from '../../services/absenceReceipt';
+import { getAbsenceKindLabel, getAbsenceReceipt } from '../../services/absenceReceipt';
 
 interface Props {
   user: User;
@@ -83,8 +83,11 @@ const AssistantControlView: React.FC<Props> = ({
 
   const acknowledgeAbsence = async (absence: Absence) => {
     setReceivingAbsenceId(absence.id);
-    await onAcknowledgeAbsence(absence);
-    setReceivingAbsenceId(null);
+    try {
+      await onAcknowledgeAbsence(absence);
+    } finally {
+      setReceivingAbsenceId(null);
+    }
   };
 
   const updateRequestStatus = async (requestId: string, newStatus: 'IN_PROGRESS' | 'DONE', committee: string) => {
@@ -281,7 +284,7 @@ const AssistantControlView: React.FC<Props> = ({
                          <div className={`mb-3 rounded-2xl border p-4 ${receipt ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-slate-50 border-slate-100 text-slate-500'}`}>
                            <p className="text-xs font-black flex items-center gap-2">
                              {receipt ? <CheckCircle size={16} /> : <Clock size={16} />}
-                             {receipt ? 'تم استلام الغياب' : 'بانتظار تأكيد استلام الغياب قبل الاتصال'}
+                             {receipt ? `تم استلام ${getAbsenceKindLabel(a.type)}` : `بانتظار تأكيد استلام ${getAbsenceKindLabel(a.type)} قبل الاتصال`}
                            </p>
                            {receipt && (
                              <p className="mt-1 text-[10px] font-bold">
@@ -295,7 +298,7 @@ const AssistantControlView: React.FC<Props> = ({
                              disabled={receivingAbsenceId === a.id}
                              className="mb-3 w-full py-5 rounded-2xl font-black text-xs flex items-center justify-center gap-3 shadow-xl transition-all bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
                            >
-                             <Check size={18} /> {receivingAbsenceId === a.id ? 'جاري تأكيد الاستلام...' : 'تأكيد استلام الغياب'}
+                             <Check size={18} /> {receivingAbsenceId === a.id ? 'جاري تأكيد الاستلام...' : `تأكيد استلام ${getAbsenceKindLabel(a.type)}`}
                            </button>
                          )}
                          <button

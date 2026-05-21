@@ -23,3 +23,5 @@ export const buildAbsenceReceiptNote = (by: string, role: string) =>
 
 export const isAbsenceReceived = (absence?: Pick<Absence, 'note'> | null) => Boolean(getAbsenceReceipt(absence));
 
+export const getAbsenceKindLabel = (type?: Absence['type']) => (type === 'LATE' ? 'التأخير' : 'الغياب');
+

@@ -3,7 +3,7 @@ import { Absence, Student, Supervision, User } from '../../types';
 import { APP_CONFIG } from '../../constants';
 import OfficialHeader from '../../components/OfficialHeader';
 import { Search, Printer, LayoutList, UserMinus, Clock, LayoutGrid, UserCheck, PhoneOutgoing, AlertCircle, CheckCircle2, Inbox } from 'lucide-react';
-import { getAbsenceReceipt } from '../../services/absenceReceipt';
+import { getAbsenceKindLabel, getAbsenceReceipt } from '../../services/absenceReceipt';
 
 interface Props {
   user: User;
@@ -60,8 +60,11 @@ const CounselorAbsenceMonitor: React.FC<Props> = ({ user, absences, students, su
 
   const acknowledge = async (absence: Absence) => {
     setReceivingId(absence.id);
-    await onAcknowledgeAbsence(absence);
-    setReceivingId(null);
+    try {
+      await onAcknowledgeAbsence(absence);
+    } finally {
+      setReceivingId(null);
+    }
   };
 
   return (
@@ -69,7 +72,7 @@ const CounselorAbsenceMonitor: React.FC<Props> = ({ user, absences, students, su
       <div className="flex flex-col lg:flex-row justify-between items-end gap-6 no-print">
         <div className="space-y-2 flex-1">
           <h2 className="text-4xl font-black text-slate-800 tracking-tighter">متابعة غياب اليوم</h2>
-          <p className="text-slate-400 font-bold italic">يجب تأكيد استلام الغياب قبل الاتصال بولي الأمر.</p>
+          <p className="text-slate-400 font-bold italic">يجب تأكيد استلام الغياب أو التأخير قبل الاتصال بولي الأمر.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {assignedGrades.length > 0 ? assignedGrades.map(grade => (
               <span key={grade} className="rounded-xl bg-blue-50 px-4 py-2 text-xs font-black text-blue-700 border border-blue-100">صف {grade}</span>
@@ -151,7 +154,7 @@ const CounselorAbsenceMonitor: React.FC<Props> = ({ user, absences, students, su
                 <div className="mb-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-emerald-700">
                   <div className="flex items-center gap-2 font-black text-sm">
                     <CheckCircle2 size={18} />
-                    تم استلام الغياب
+                    تم استلام {getAbsenceKindLabel(a.type)}
                   </div>
                   <p className="mt-1 text-[11px] font-bold text-emerald-600">
                     بواسطة {a.receipt.role}: {a.receipt.by} - {new Date(a.receipt.at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
@@ -165,7 +168,7 @@ const CounselorAbsenceMonitor: React.FC<Props> = ({ user, absences, students, su
                   className="w-full py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-4 transition-all shadow-xl active:scale-95 bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-200 disabled:opacity-60"
                 >
                   <Inbox size={24} />
-                  {receivingId === a.id ? 'جاري تأكيد الاستلام...' : 'تأكيد استلام الغياب'}
+                  {receivingId === a.id ? 'جاري تأكيد الاستلام...' : `تأكيد استلام ${getAbsenceKindLabel(a.type)}`}
                 </button>
               ) : a.parentPhone ? (
                 <a href={`tel:${a.parentPhone}`} className={`w-full py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-4 transition-all shadow-xl active:scale-95 ${a.type === 'ABSENT' ? 'bg-red-600 text-white hover:bg-red-700 shadow-red-200' : 'bg-slate-900 text-white hover:bg-black shadow-slate-200'}`}><PhoneOutgoing size={24} />اتصال بولي الأمر</a>
@@ -195,7 +198,7 @@ const CounselorAbsenceMonitor: React.FC<Props> = ({ user, absences, students, su
               <th className="border-2 border-slate-900 p-2 font-black">اسم الطالب</th>
               <th className="border-2 border-slate-900 p-2 font-black">اللجنة</th>
               <th className="border-2 border-slate-900 p-2 font-black">الحالة</th>
-              <th className="border-2 border-slate-900 p-2 font-black">استلام الغياب</th>
+              <th className="border-2 border-slate-900 p-2 font-black">استلام الحالة</th>
             </tr>
           </thead>
           <tbody>

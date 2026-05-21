@@ -28,7 +28,7 @@ import EnvelopeLabelsPrint from './screens/admin/EnvelopeLabelsPrint';
 import DoorLabelsPrint from './screens/admin/DoorLabelsPrint';
 import CommitteePublicView from './screens/public/CommitteePublicView';
 import StudentCommitteeInquiry from './screens/public/StudentCommitteeInquiry';
-import { buildAbsenceReceiptNote } from './services/absenceReceipt';
+import { buildAbsenceReceiptNote, getAbsenceKindLabel } from './services/absenceReceipt';
 import GlobalQRScanner from './components/GlobalQRScanner';
 import { BellRing, Menu, X, CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2 } from 'lucide-react';
 import { db, supabase } from './supabase';
@@ -234,15 +234,34 @@ const App: React.FC = () => {
   };
 
   const acknowledgeAbsenceReceipt = async (absence: Absence, receiver: User) => {
-    await db.absences.upsert({
-      ...absence,
-      note: buildAbsenceReceiptNote(
-        receiver.full_name,
-        receiver.role === 'COUNSELOR' ? 'الموجه الطلابي' : 'مساعد الكنترول'
-      )
-    });
-    await fetchData();
-    addLocalNotification(`تم تأكيد استلام غياب الطالب ${absence.student_name}`, 'success');
+    const note = buildAbsenceReceiptNote(
+      receiver.full_name,
+      receiver.role === 'COUNSELOR' ? 'الموجه الطلابي' : 'مساعد الكنترول'
+    );
+    const cleanAbsence: Absence = {
+      id: absence.id,
+      date: absence.date,
+      student_id: absence.student_id,
+      student_name: absence.student_name,
+      committee_number: absence.committee_number,
+      period: absence.period,
+      type: absence.type,
+      proctor_id: absence.proctor_id,
+      note,
+    };
+
+    const previousAbsences = absences;
+    setAbsences(prev => prev.map(item => item.id === absence.id ? { ...item, note } : item));
+
+    try {
+      await db.absences.upsert(cleanAbsence);
+      await fetchData();
+      addLocalNotification(`تم تأكيد استلام ${getAbsenceKindLabel(absence.type)} للطالب ${absence.student_name}`, 'success');
+    } catch (error: any) {
+      setAbsences(previousAbsences);
+      addLocalNotification(error.message || `تعذر تأكيد استلام ${getAbsenceKindLabel(absence.type)}.`, 'error');
+      throw error;
+    }
   };
 
   const saveUsersOptimistic = async (nextOrUpdater: User[] | ((prev: User[]) => User[])) => {
