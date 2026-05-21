@@ -270,38 +270,6 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
     }
   };
 
-  const confirmAllReceipts = async () => {
-    if (!currentQueue.length) return;
-    setIsSaving(true);
-    try {
-      for (const item of currentQueue) {
-        const sv = supervisions.find(s => cleanId(s.committee_number) === item.committee && matchDate(s.date, todayDate));
-        const proctorObj = users.find(u => u.id === sv?.teacher_id);
-        await setDeliveryLogs({
-          id: crypto.randomUUID(),
-          teacher_name: user.full_name,
-          proctor_name: proctorObj?.full_name || 'استلام مباشر',
-          committee_number: item.committee,
-          grade: item.grade,
-          type: 'RECEIVE',
-          time: new Date().toISOString(),
-          period: 1,
-          status: 'CONFIRMED'
-        });
-      }
-      setReceiptNote('');
-      setIsSuccessState(true);
-      setTimeout(() => {
-        setIsSuccessState(false);
-        setActiveCommitteeId(null);
-      }, 1000);
-    } catch (error: any) {
-      onAlert(`فشل التوثيق: ${error.message}`);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   return (
     <div className="space-y-8 animate-fade-in text-right pb-32 px-4 md:px-0 max-w-7xl mx-auto">
       
@@ -563,25 +531,15 @@ const ControlReceiptView: React.FC<Props> = ({ user, students, absences, deliver
                         </div>
 
                        <div className="pt-4">
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                           <button 
-                             onClick={confirmReceipt} 
-                             disabled={isSaving}
-                             className="w-full py-6 bg-emerald-600 text-white rounded-[2rem] font-black text-xl flex items-center justify-center gap-4 shadow-[0_10px_30px_rgba(16,185,129,0.3)] hover:bg-emerald-700 transition-all active:scale-95 relative overflow-hidden group"
-                           >
-                              <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                              <Save size={28}/> 
-                              <span>استلام هذا الصف</span>
-                           </button>
-                           <button
-                             onClick={confirmAllReceipts}
-                             disabled={isSaving || currentQueue.length <= 1}
-                             className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-xl flex items-center justify-center gap-4 shadow-xl hover:bg-blue-600 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-                           >
-                              <PackageCheck size={28}/> 
-                              <span>استلام كل صفوف اللجنة</span>
-                           </button>
-                         </div>
+                         <button 
+                           onClick={confirmReceipt} 
+                           disabled={isSaving}
+                           className="w-full py-6 bg-emerald-600 text-white rounded-[2rem] font-black text-xl flex items-center justify-center gap-4 shadow-[0_10px_30px_rgba(16,185,129,0.3)] hover:bg-emerald-700 transition-all active:scale-95 relative overflow-hidden group"
+                         >
+                            <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            <Save size={28}/> 
+                            <span>استلام هذا الصف</span>
+                         </button>
                          <p className="text-center text-[11px] font-bold text-slate-400 mt-4">بالضغط أنت تقر بأنك طابقت الأعداد الفعلية في المظروف مع المسجلة أعلاه.</p>
                        </div>
                     </div>
