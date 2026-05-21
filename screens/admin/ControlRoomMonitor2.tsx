@@ -12,6 +12,8 @@ import {
   Megaphone,
   MonitorPlay,
   PackageCheck,
+  Pin,
+  PinOff,
   Radio,
   ShieldCheck,
   Sparkles,
@@ -46,6 +48,7 @@ const formatTime = (value?: string) => {
 const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, deliveryLogs, students, requests }) => {
   const [now, setNow] = useState(new Date());
   const [scene, setScene] = useState<Scene>('overview');
+  const [pinnedScene, setPinnedScene] = useState<Scene | null>(null);
   const activeDate = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
@@ -54,11 +57,12 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
   }, []);
 
   useEffect(() => {
+    if (pinnedScene) return;
     const timer = setInterval(() => {
       setScene(prev => sceneOrder[(sceneOrder.indexOf(prev) + 1) % sceneOrder.length]);
     }, 14000);
     return () => clearInterval(timer);
-  }, []);
+  }, [pinnedScene]);
 
   const committees = useMemo(() => {
     const nums = Array.from(new Set(students.map(s => s.committee_number))).filter(Boolean).sort((a, b) => Number(a) - Number(b));
@@ -214,6 +218,19 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
     />
   );
 
+  const sceneLabels: Record<Scene, string> = {
+    overview: 'المؤشرات',
+    map: 'الخريطة',
+    alerts: 'البلاغات',
+    attendance: 'الحضور',
+    timeline: 'السجل',
+  };
+
+  const togglePinnedScene = (id: Scene) => {
+    setScene(id);
+    setPinnedScene(prev => prev === id ? null : id);
+  };
+
   return (
     <div className="tv2-root fixed inset-0 overflow-hidden bg-[#020617] text-white font-['Tajawal']" dir="rtl">
       <div className="pointer-events-none absolute inset-0 tv2-grid-bg" />
@@ -235,14 +252,32 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
           <div className="min-w-0 flex-1 px-4">
             <div className="mb-3 flex items-center justify-center gap-3 text-sm font-black text-slate-300">
               <Radio size={18} className="animate-pulse text-emerald-300" />
-              <span>عرض تلقائي متزامن مع اللجان والبلاغات والاستلام</span>
+              <span>{pinnedScene ? `مثبت الآن على شاشة ${sceneLabels[pinnedScene]}` : 'عرض تلقائي متزامن مع اللجان والبلاغات والاستلام'}</span>
             </div>
-            <div className="mx-auto flex max-w-xl gap-2">
+            <div className="mx-auto mb-3 flex max-w-xl gap-2">
               <SceneBadge id="overview" label="المؤشرات" />
               <SceneBadge id="map" label="الخريطة" />
               <SceneBadge id="alerts" label="البلاغات" />
               <SceneBadge id="attendance" label="الحضور" />
               <SceneBadge id="timeline" label="السجل" />
+            </div>
+            <div className="mx-auto flex max-w-4xl items-center justify-center gap-2">
+              {sceneOrder.map(id => (
+                <button
+                  key={id}
+                  onClick={() => togglePinnedScene(id)}
+                  className={`flex items-center gap-2 rounded-2xl border px-4 py-2 text-[11px] font-black transition-all ${
+                    pinnedScene === id
+                      ? 'border-orange-300/60 bg-orange-400 text-slate-950 shadow-[0_0_24px_rgba(251,146,60,0.45)]'
+                      : scene === id
+                        ? 'border-white/20 bg-white/10 text-white'
+                        : 'border-white/10 bg-white/[0.035] text-slate-400 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  {pinnedScene === id ? <PinOff size={13} /> : <Pin size={13} />}
+                  {pinnedScene === id ? 'مثبت' : sceneLabels[id]}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -360,20 +395,20 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
                   <span className="rounded-full bg-emerald-500 px-4 py-2">مكتملة</span>
                 </div>
               </div>
-              <div className="grid h-[calc(100%-7rem)] grid-cols-[repeat(auto-fit,minmax(8.2rem,1fr))] content-start gap-5 overflow-hidden">
+              <div className="tv2-map-grid grid h-[calc(100%-7rem)] grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-5 overflow-hidden">
                 {committees.map(c => (
-                  <div key={c.num} className={`relative aspect-[1.18] overflow-hidden rounded-[2rem] border-2 bg-gradient-to-br p-4 shadow-2xl ${statusStyle(c.status)}`}>
+                  <div key={c.num} className={`relative min-h-0 overflow-hidden rounded-[2rem] border-2 bg-gradient-to-br p-5 shadow-2xl ${statusStyle(c.status)}`}>
                     <div className="absolute -left-8 -top-8 h-24 w-24 rounded-full bg-white/20 blur-2xl" />
                     {c.status === 'submitted' && <Truck className="absolute left-4 top-4 animate-bounce text-white/80" size={26} />}
                     {c.status === 'alert' && <BellRing className="absolute left-4 top-4 animate-pulse text-white" size={26} />}
                     <div className="relative z-10 flex h-full flex-col justify-between">
                       <div>
-                        <p className="text-xs font-black opacity-75">لجنة</p>
-                        <p className="text-6xl font-black leading-none tabular-nums">{c.num}</p>
+                        <p className="text-sm font-black opacity-75">لجنة</p>
+                        <p className="text-7xl font-black leading-none tabular-nums">{c.num}</p>
                       </div>
-                      <div>
-                        <p className="truncate text-xs font-black opacity-80">{c.proctorName}</p>
-                        <p className="mt-1 text-[10px] font-black opacity-70">{c.totalStudents} طالب · {c.grades.length} صف</p>
+                      <div className="rounded-2xl bg-slate-950/22 px-3 py-2 backdrop-blur-sm">
+                        <p className="tv2-proctor-name text-sm font-black leading-5 text-white drop-shadow-sm">{c.proctorName}</p>
+                        <p className="mt-1 text-[11px] font-black opacity-75">{c.totalStudents} طالب · {c.grades.length} صف</p>
                       </div>
                     </div>
                   </div>
@@ -554,6 +589,17 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
         .tv2-flash {
           animation: tv2OrangeFlash 1.4s ease-in-out infinite;
         }
+        .tv2-map-grid {
+          grid-auto-rows: minmax(9.5rem, 1fr);
+          align-content: stretch;
+        }
+        .tv2-proctor-name {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          text-wrap: balance;
+        }
         @keyframes tv2SceneIn {
           from { opacity: 0; transform: translateY(20px) scale(.985); filter: blur(8px); }
           to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
@@ -570,6 +616,10 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
           .tv2-root header { height: 5.5rem; }
           .tv2-root h1, .tv2-root h2 { font-size: clamp(1.8rem, 3vw, 3rem); }
           .tv2-root .grid-cols-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+          .tv2-map-grid {
+            grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+            grid-auto-rows: minmax(8rem, 1fr);
+          }
         }
       `}</style>
     </div>
