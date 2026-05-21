@@ -50,7 +50,9 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
   const [scene, setScene] = useState<Scene>('overview');
   const [pinnedScene, setPinnedScene] = useState<Scene | null>(null);
   const [priorityScene, setPriorityScene] = useState<{ scene: Scene; until: number; label: string } | null>(null);
+  const [showDayComplete, setShowDayComplete] = useState(false);
   const latestSeenRef = useRef({ request: '', absence: '', delivery: '' });
+  const wasCompleteRef = useRef(false);
   const activeDate = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
@@ -276,6 +278,74 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
     { label: 'تأخير', value: insights.lateCount, icon: Timer, tone: 'text-amber-300', sub: 'حالات مرصودة' },
   ];
 
+  const playCelebrationSound = () => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const ctx = new AudioContextClass();
+      const master = ctx.createGain();
+      master.gain.value = 0.18;
+      master.connect(ctx.destination);
+
+      const beep = (time: number, freq: number, duration = 0.13) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, time);
+        gain.gain.setValueAtTime(0.001, time);
+        gain.gain.exponentialRampToValueAtTime(0.6, time + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+        osc.connect(gain);
+        gain.connect(master);
+        osc.start(time);
+        osc.stop(time + duration + 0.03);
+      };
+
+      const clap = (time: number) => {
+        const bufferSize = Math.floor(ctx.sampleRate * 0.09);
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i += 1) {
+          data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2.2);
+        }
+        const source = ctx.createBufferSource();
+        const filter = ctx.createBiquadFilter();
+        const gain = ctx.createGain();
+        filter.type = 'bandpass';
+        filter.frequency.value = 1800 + Math.random() * 900;
+        gain.gain.value = 0.7;
+        source.buffer = buffer;
+        source.connect(filter);
+        filter.connect(gain);
+        gain.connect(master);
+        source.start(time);
+      };
+
+      const start = ctx.currentTime + 0.05;
+      [523, 659, 784, 1046].forEach((freq, idx) => beep(start + idx * 0.16, freq, 0.16));
+      for (let i = 0; i < 42; i += 1) {
+        clap(start + 0.75 + i * 0.085);
+      }
+      setTimeout(() => ctx.close(), 5200);
+    } catch {
+      // الصوت اختياري وقد تمنعه بعض المتصفحات دون تفاعل سابق.
+    }
+  };
+
+  useEffect(() => {
+    const isComplete = insights.total > 0 && insights.confirmed === insights.total;
+    if (isComplete && !wasCompleteRef.current) {
+      wasCompleteRef.current = true;
+      setShowDayComplete(true);
+      playCelebrationSound();
+      const timer = setTimeout(() => setShowDayComplete(false), 15000);
+      return () => clearTimeout(timer);
+    }
+    if (!isComplete) {
+      wasCompleteRef.current = false;
+    }
+  }, [insights.confirmed, insights.total]);
+
   const SceneBadge = ({ id, label }: { id: Scene; label: string }) => (
     <button
       onClick={() => setScene(id)}
@@ -305,6 +375,32 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
       <div className="pointer-events-none absolute -bottom-40 -left-40 h-[34rem] w-[34rem] rounded-full bg-orange-500/20 blur-[130px]" />
 
       <div className="relative z-10 flex h-full flex-col p-5 2xl:p-8">
+        {showDayComplete && (
+          <div className="pointer-events-none fixed inset-0 z-[999] overflow-hidden bg-slate-950/88 backdrop-blur-md">
+            <div className="absolute inset-0 tv2-confetti" />
+            <div className="absolute inset-0 flex items-center justify-center p-8 text-center">
+              <div className="relative max-w-5xl rounded-[4rem] border border-emerald-300/30 bg-white/[0.08] p-12 shadow-[0_0_120px_rgba(16,185,129,0.35)]">
+                <div className="absolute -inset-1 rounded-[4rem] bg-gradient-to-r from-emerald-400/30 via-orange-300/20 to-cyan-300/30 blur-2xl" />
+                <div className="relative z-10 space-y-8">
+                  <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-[2.5rem] bg-emerald-400 text-slate-950 shadow-[0_0_60px_rgba(52,211,153,.65)] tv2-celebrate-pop">
+                    <Trophy size={70} />
+                  </div>
+                  <div>
+                    <p className="text-xl font-black text-emerald-200">تم اكتمال اليوم الاختباري</p>
+                    <h2 className="tv2-celebration-title mt-3 text-7xl font-black tracking-tight text-white">اكتملت جميع اللجان شكراً للجميع</h2>
+                    <p className="mt-5 text-2xl font-bold text-slate-200">تصفيق حار لفريق الكنترول والمراقبين على إنجاز الاستلام بالكامل.</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="rounded-[2rem] bg-emerald-500/15 p-5"><p className="text-5xl font-black">{insights.confirmed}</p><p className="text-xs font-black text-emerald-100">لجان مكتملة</p></div>
+                    <div className="rounded-[2rem] bg-blue-500/15 p-5"><p className="text-5xl font-black">{students.length}</p><p className="text-xs font-black text-blue-100">طالب ضمن اليوم</p></div>
+                    <div className="rounded-[2rem] bg-orange-500/15 p-5"><p className="text-5xl font-black">{insights.absentCount + insights.lateCount}</p><p className="text-xs font-black text-orange-100">حالات متابعة</p></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <header className="mb-5 flex h-24 items-center justify-between gap-5">
           <div className="flex items-center gap-4 rounded-[2rem] border border-white/10 bg-white/[0.04] px-6 py-4 shadow-2xl backdrop-blur-xl">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-400 text-slate-950 shadow-[0_0_35px_rgba(251,146,60,0.55)]">
@@ -680,6 +776,28 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
         .tv2-flash {
           animation: tv2OrangeFlash 1.4s ease-in-out infinite;
         }
+        .tv2-confetti {
+          background-image:
+            radial-gradient(circle, #34d399 0 5px, transparent 6px),
+            radial-gradient(circle, #fb923c 0 4px, transparent 5px),
+            radial-gradient(circle, #38bdf8 0 4px, transparent 5px),
+            radial-gradient(circle, #facc15 0 5px, transparent 6px);
+          background-size: 120px 120px, 150px 150px, 170px 170px, 210px 210px;
+          background-position: 0 -120px, 40px -150px, 90px -170px, 20px -210px;
+          animation: tv2ConfettiFall 1.6s linear infinite;
+        }
+        .tv2-celebrate-pop {
+          animation: tv2CelebratePop 900ms ease-in-out infinite alternate;
+        }
+        .tv2-celebration-title {
+          text-shadow:
+            0 3px 0 rgba(16,185,129,.95),
+            0 8px 0 rgba(14,116,144,.55),
+            0 18px 35px rgba(0,0,0,.75),
+            0 0 42px rgba(52,211,153,.45);
+          transform-style: preserve-3d;
+          animation: tv2TitleFloat3d 2.2s ease-in-out infinite alternate;
+        }
         .tv2-map-grid {
           grid-auto-rows: minmax(9.5rem, 1fr);
           align-content: stretch;
@@ -702,6 +820,18 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
         @keyframes tv2OrangeFlash {
           0%, 100% { box-shadow: 0 0 22px rgba(249,115,22,.45); filter: saturate(1); }
           50% { box-shadow: 0 0 58px rgba(249,115,22,.95); filter: saturate(1.3); }
+        }
+        @keyframes tv2ConfettiFall {
+          from { background-position: 0 -120px, 40px -150px, 90px -170px, 20px -210px; }
+          to { background-position: 0 120px, 40px 150px, 90px 170px, 20px 210px; }
+        }
+        @keyframes tv2CelebratePop {
+          from { transform: scale(1) rotate(-2deg); }
+          to { transform: scale(1.08) rotate(2deg); }
+        }
+        @keyframes tv2TitleFloat3d {
+          from { transform: perspective(900px) rotateX(8deg) rotateY(-5deg) translateY(0); }
+          to { transform: perspective(900px) rotateX(2deg) rotateY(5deg) translateY(-14px); }
         }
         @media (max-width: 1300px) {
           .tv2-root header { height: 5.5rem; }
