@@ -43,6 +43,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     { id: 'head-dash', label: 'غرفة العمليات', icon: LayoutPanelTop },
     { id: 'dashboard', label: 'الإحصائيات العامة', icon: LayoutDashboard },
     { id: 'control-monitor', label: 'لوحة العرض (TV)', icon: MonitorPlay },
+    { id: 'control-monitor-2', label: 'لوحة العرض (TV2)', icon: Monitor },
     { id: 'control-manager', label: 'مركز القيادة', icon: ShieldHalf },
     { id: 'proctor-excellence', label: 'سجل التميز', icon: Award },
     { id: 'committee-labels', label: 'ملصقات اللجان (QR)', icon: QrCode },

@@ -16,6 +16,7 @@ import ControlHeadDashboard from './screens/admin/ControlHeadDashboard';
 import ControlManager from './screens/admin/ControlManager';
 import { SmartDistributionItem } from './screens/admin/SmartProctorDistribution';
 import ControlRoomMonitor from './screens/admin/ControlRoomMonitor';
+import ControlRoomMonitor2 from './screens/admin/ControlRoomMonitor2';
 import ProctorDailyAssignmentFlow from './screens/proctor/DailyAssignmentFlow';
 import ProctorAlertsHistory from './screens/proctor/ProctorAlertsHistory';
 import TeacherBadgeView from './screens/proctor/TeacherBadgeView';
@@ -371,6 +372,14 @@ const App: React.FC = () => {
               <X size={32} />
            </button>
            <ControlRoomMonitor absences={absences} supervisions={supervisions} users={users} deliveryLogs={deliveryLogs} students={students} requests={controlRequests} />
+        </div>
+      );
+      case 'control-monitor-2': return (
+        <div className="fixed inset-0 z-[200] bg-slate-950 no-print">
+           <button onClick={() => setActiveTab('dashboard')} className="fixed top-6 left-6 z-[230] bg-white/10 text-white p-3 rounded-full hover:bg-white/20">
+              <X size={32} />
+           </button>
+           <ControlRoomMonitor2 absences={absences} supervisions={supervisions} users={users} deliveryLogs={deliveryLogs} students={students} requests={controlRequests} />
         </div>
       );
       case 'proctor-excellence': return <AdminProctorPerformance users={users} supervisions={supervisions} deliveryLogs={deliveryLogs} absences={absences} systemConfig={systemConfig} />;
