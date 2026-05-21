@@ -407,7 +407,7 @@ const App: React.FC = () => {
 
   if (isInitialLoading) {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('public_committee') || params.get('student_inquiry') || params.get('supervision_verify') || params.get('sv')) {
+    if (params.get('public_committee') || params.get('student_inquiry') || params.get('supervision_verify') || params.get('sv') || params.get('tv2')) {
        return (
          <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-6 font-['Tajawal']" dir="rtl">
            <Loader2 size={48} className="text-blue-600 animate-spin" />
@@ -427,6 +427,11 @@ const App: React.FC = () => {
   const publicCommitteeId = new URLSearchParams(window.location.search).get('public_committee');
   if (publicCommitteeId) {
     return <CommitteePublicView committeeNumber={publicCommitteeId} students={students} supervisions={supervisions} absences={absences} users={users} />;
+  }
+
+  const isTv2Public = new URLSearchParams(window.location.search).get('tv2');
+  if (isTv2Public) {
+    return <ControlRoomMonitor2 absences={absences} supervisions={supervisions} users={users} deliveryLogs={deliveryLogs} students={students} requests={controlRequests} />;
   }
 
   const isStudentInquiry = new URLSearchParams(window.location.search).get('student_inquiry');
