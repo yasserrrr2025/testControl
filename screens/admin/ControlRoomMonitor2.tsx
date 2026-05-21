@@ -116,9 +116,18 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
 
     if (latestDelivery && latestDelivery.id !== seen.delivery) {
       latestSeenRef.current = { ...latestSeenRef.current, delivery: latestDelivery.id };
-      showPriority(latestDelivery.status === 'CONFIRMED' ? 'timeline' : 'map', 8000, `${latestDelivery.status === 'CONFIRMED' ? 'استلام جديد' : 'إغلاق جديد'} للجنة ${latestDelivery.committee_number}`);
+      const label = latestDelivery.status === 'CONFIRMED'
+        ? `تم الاستلام النهائي: لجنة ${latestDelivery.committee_number} · ${latestDelivery.grade} · المستلم: ${latestDelivery.teacher_name}`
+        : `إغلاق جديد: لجنة ${latestDelivery.committee_number} · ${latestDelivery.grade}`;
+
+      if (latestDelivery.status === 'CONFIRMED' && pinnedScene === 'map') {
+        setPriorityScene({ scene: 'map', until: Date.now() + 8000, label });
+        return;
+      }
+
+      showPriority(latestDelivery.status === 'CONFIRMED' ? 'timeline' : 'map', 8000, label);
     }
-  }, [absences, deliveryLogs, requests]);
+  }, [absences, deliveryLogs, pinnedScene, requests]);
 
   const committees = useMemo(() => {
     const nums = Array.from(new Set(students.map(s => s.committee_number))).filter(Boolean).sort((a, b) => Number(a) - Number(b));
