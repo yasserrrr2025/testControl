@@ -377,24 +377,27 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
 
       <div className="relative z-10 flex h-full flex-col p-5 2xl:p-8">
         {showDayComplete && (
-          <div className="pointer-events-none fixed inset-0 z-[999] overflow-hidden bg-slate-950/88 backdrop-blur-md">
+          <div className="pointer-events-none fixed inset-0 z-[999] overflow-hidden bg-slate-950/45 backdrop-blur-[10px]">
             <div className="absolute inset-0 tv2-confetti" />
             <div className="absolute inset-0 flex items-center justify-center p-8 text-center">
-              <div className="relative max-w-5xl rounded-[4rem] border border-emerald-300/30 bg-white/[0.08] p-12 shadow-[0_0_120px_rgba(16,185,129,0.35)]">
-                <div className="absolute -inset-1 rounded-[4rem] bg-gradient-to-r from-emerald-400/30 via-orange-300/20 to-cyan-300/30 blur-2xl" />
-                <div className="relative z-10 space-y-8">
-                  <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-[2.5rem] bg-emerald-400 text-slate-950 shadow-[0_0_60px_rgba(52,211,153,.65)] tv2-celebrate-pop">
-                    <Trophy size={70} />
+              <div className="tv2-celebration-card relative w-full max-w-5xl rounded-[4rem] border border-emerald-200/25 bg-white/[0.16] p-10 shadow-[0_0_140px_rgba(16,185,129,0.38)]">
+                <div className="absolute -inset-1 rounded-[4rem] bg-gradient-to-br from-emerald-300/25 via-white/10 to-cyan-300/20 blur-2xl" />
+                <div className="relative z-10 space-y-7">
+                  <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-[2rem] bg-emerald-400 text-slate-950 shadow-[0_0_70px_rgba(52,211,153,.78)] tv2-celebrate-pop">
+                    <Trophy size={68} strokeWidth={3} />
                   </div>
                   <div>
-                    <p className="text-xl font-black text-emerald-200">تم اكتمال اليوم الاختباري</p>
-                    <h2 className="tv2-celebration-title mt-3 text-7xl font-black tracking-tight text-white">اكتملت جميع اللجان شكراً للجميع</h2>
-                    <p className="mt-5 text-2xl font-bold text-slate-200">تصفيق حار لفريق الكنترول والمراقبين على إنجاز الاستلام بالكامل.</p>
+                    <p className="text-xl font-black text-emerald-100/90">تم اكتمال اليوم الاختباري</p>
+                    <h2 className="tv2-celebration-title mt-3 text-6xl md:text-7xl font-black tracking-tight text-white leading-[1.08]">
+                      <span className="block">اكتملت جميع اللجان شكراً</span>
+                      <span className="block">للجميع</span>
+                    </h2>
+                    <p className="mt-5 text-2xl font-black text-white/85">تصفيق حار لفريق الكنترول والمراقبين على إنجاز الاستلام بالكامل.</p>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="rounded-[2rem] bg-emerald-500/15 p-5"><p className="text-5xl font-black">{insights.confirmed}</p><p className="text-xs font-black text-emerald-100">لجان مكتملة</p></div>
-                    <div className="rounded-[2rem] bg-blue-500/15 p-5"><p className="text-5xl font-black">{students.length}</p><p className="text-xs font-black text-blue-100">طالب ضمن اليوم</p></div>
-                    <div className="rounded-[2rem] bg-orange-500/15 p-5"><p className="text-5xl font-black">{insights.absentCount + insights.lateCount}</p><p className="text-xs font-black text-orange-100">حالات متابعة</p></div>
+                  <div className="grid grid-cols-3 gap-4 max-w-3xl mx-auto">
+                    <div className="rounded-[1.8rem] bg-emerald-400/18 p-5 backdrop-blur-md"><p className="text-5xl font-black">{insights.confirmed}</p><p className="text-xs font-black text-emerald-50">لجان مكتملة</p></div>
+                    <div className="rounded-[1.8rem] bg-cyan-400/16 p-5 backdrop-blur-md"><p className="text-5xl font-black">{students.length}</p><p className="text-xs font-black text-cyan-50">طالب ضمن اليوم</p></div>
+                    <div className="rounded-[1.8rem] bg-orange-400/16 p-5 backdrop-blur-md"><p className="text-5xl font-black">{insights.absentCount + insights.lateCount}</p><p className="text-xs font-black text-orange-50">حالات متابعة</p></div>
                   </div>
                 </div>
               </div>
@@ -790,6 +793,11 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
         .tv2-celebrate-pop {
           animation: tv2CelebratePop 900ms ease-in-out infinite alternate;
         }
+        .tv2-celebration-card {
+          backdrop-filter: blur(22px) saturate(150%);
+          -webkit-backdrop-filter: blur(22px) saturate(150%);
+          animation: tv2CardFloat 2.8s ease-in-out infinite alternate;
+        }
         .tv2-celebration-title {
           text-shadow:
             0 3px 0 rgba(16,185,129,.95),
@@ -829,6 +837,10 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
         @keyframes tv2CelebratePop {
           from { transform: scale(1) rotate(-2deg); }
           to { transform: scale(1.08) rotate(2deg); }
+        }
+        @keyframes tv2CardFloat {
+          from { transform: translateY(0) scale(1); }
+          to { transform: translateY(-10px) scale(1.01); }
         }
         @keyframes tv2TitleFloat3d {
           from { transform: perspective(900px) rotateX(8deg) rotateY(-5deg) translateY(0); }
