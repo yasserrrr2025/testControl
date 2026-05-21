@@ -32,6 +32,18 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
   const previousCommitteeStatus = useRef<Record<string, string>>({});
   const activeDate = new Date().toISOString().split('T')[0];
 
+  const getMapColumns = (total: number, isFull: boolean) => {
+    if (!isFull) {
+      if (isCompact) return 'repeat(12, minmax(0, 1fr))';
+      return 'repeat(9, minmax(0, 1fr))';
+    }
+    if (total <= 6) return 'repeat(3, minmax(150px, 1fr))';
+    if (total <= 12) return 'repeat(4, minmax(140px, 1fr))';
+    if (total <= 18) return 'repeat(6, minmax(130px, 1fr))';
+    if (total <= 24) return 'repeat(8, minmax(110px, 1fr))';
+    return 'repeat(auto-fit, minmax(96px, 1fr))';
+  };
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -156,8 +168,11 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
             </button>
          </div>
       </div>
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
-         <div className={`tv-committee-grid grid ${isFull ? 'grid-cols-8 md:grid-cols-10 lg:grid-cols-12' : isCompact ? 'grid-cols-8 md:grid-cols-10 lg:grid-cols-12' : 'grid-cols-6 md:grid-cols-8 lg:grid-cols-9'} gap-4 p-2`}>
+       <div className={`flex-1 ${isFull ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}>
+          <div
+            className={`tv-committee-grid grid ${isFull ? 'tv-committee-grid-full' : isCompact ? 'grid-cols-8 md:grid-cols-10 lg:grid-cols-12' : 'grid-cols-6 md:grid-cols-8 lg:grid-cols-9'} gap-4 p-2`}
+            style={isFull ? { gridTemplateColumns: getMapColumns(committeeGrid.length, isFull) } : undefined}
+          >
             {committeeGrid.map(c => (
               <div key={c.num} className={`tv-committee-cell ${recentlyChanged.has(c.num) ? 'tv-status-pop' : ''}
                 aspect-square rounded-[2rem] border-2 flex flex-col items-center justify-center transition-all duration-700 relative overflow-hidden
@@ -174,8 +189,8 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
                    </div>
                 )}
                 {c.isSubmitted && <Truck size={isFull ? 26 : 20} className="absolute top-3 right-3 text-white animate-bounce drop-shadow-xl" />}
-                <span className="text-[9px] font-black opacity-70 relative z-10">لجنة</span>
-                <span className={`${isFull ? 'text-4xl' : isCompact ? 'text-2xl' : 'text-3xl'} font-black tabular-nums tracking-tighter relative z-10`}>{c.num}</span>
+                 <span className={`${isFull ? 'text-sm' : 'text-[9px]'} font-black opacity-70 relative z-10`}>لجنة</span>
+                 <span className={`${isFull ? 'tv-full-map-number' : isCompact ? 'text-2xl' : 'text-3xl'} font-black tabular-nums tracking-tighter relative z-10`}>{c.num}</span>
                 {c.isSubmitted && <span className="relative z-10 mt-1 rounded-full bg-white/20 px-2 py-1 text-[8px] font-black">إلى الكنترول</span>}
               </div>
             ))}
@@ -462,6 +477,22 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
           border-radius: clamp(18px, 2vw, 32px);
           min-width: 0;
         }
+        .tv-committee-grid-full {
+          align-content: start;
+          justify-content: center;
+          gap: clamp(14px, 1.7vw, 30px) !important;
+          max-height: 100%;
+          overflow: hidden;
+        }
+        .tv-committee-grid-full .tv-committee-cell {
+          max-width: min(14vw, 190px);
+          min-width: 0;
+          border-radius: clamp(24px, 2.2vw, 38px);
+        }
+        .tv-full-map-number {
+          font-size: clamp(2.6rem, 4.8vw, 5.8rem);
+          line-height: 0.95;
+        }
         .tv-stat-card {
           padding: clamp(16px, 1.45vw, 28px);
           border-radius: clamp(22px, 2.4vw, 40px);
@@ -498,6 +529,9 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
           .tv-committee-grid {
             grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
           }
+          .tv-committee-grid-full {
+            grid-template-columns: repeat(6, minmax(130px, 1fr)) !important;
+          }
         }
         @media (max-width: 1280px) {
           .tv-topbar {
@@ -518,6 +552,9 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
           }
           .tv-committee-grid {
             grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+          }
+          .tv-committee-grid-full {
+            grid-template-columns: repeat(5, minmax(120px, 1fr)) !important;
           }
           .tv-sidebar .tv-reports-panel {
             display: none;
@@ -557,6 +594,9 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
           .tv-committee-grid {
             grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
           }
+          .tv-committee-grid-full {
+            grid-template-columns: repeat(4, minmax(100px, 1fr)) !important;
+          }
           .tv-ticker p:last-child {
             white-space: normal;
           }
@@ -567,6 +607,9 @@ const ControlRoomMonitor: React.FC<Props> = ({ absences, supervisions, users, de
           }
           .tv-committee-grid {
             grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+          }
+          .tv-committee-grid-full {
+            grid-template-columns: repeat(3, minmax(86px, 1fr)) !important;
           }
           .tv-panel-head {
             align-items: flex-start;
