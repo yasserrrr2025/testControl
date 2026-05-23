@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -107,21 +107,21 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
 
     if (latestRequest && latestRequest.id !== seen.request) {
       latestSeenRef.current = { ...latestSeenRef.current, request: latestRequest.id };
-      showPriority('alerts', 12000, `بلاغ جديد من لجنة ${latestRequest.committee}`);
+      showPriority('alerts', 12000, `ط¨ظ„ط§ط؛ ط¬ط¯ظٹط¯ ظ…ظ† ظ„ط¬ظ†ط© ${latestRequest.committee}`);
       return;
     }
 
     if (latestAbsence && latestAbsence.id !== seen.absence) {
       latestSeenRef.current = { ...latestSeenRef.current, absence: latestAbsence.id };
-      showPriority('attendance', 10000, `${getAbsenceKindLabel(latestAbsence.type)} جديد في لجنة ${latestAbsence.committee_number}`);
+      showPriority('attendance', 10000, `${getAbsenceKindLabel(latestAbsence.type)} ط¬ط¯ظٹط¯ ظپظٹ ظ„ط¬ظ†ط© ${latestAbsence.committee_number}`);
       return;
     }
 
     if (latestDelivery && latestDelivery.id !== seen.delivery) {
       latestSeenRef.current = { ...latestSeenRef.current, delivery: latestDelivery.id };
       const label = latestDelivery.status === 'CONFIRMED'
-        ? `تم الاستلام النهائي: لجنة ${latestDelivery.committee_number} · ${latestDelivery.grade} · المستلم: ${latestDelivery.teacher_name}`
-        : `إغلاق جديد: لجنة ${latestDelivery.committee_number} · ${latestDelivery.grade}`;
+        ? `طھظ… ط§ظ„ط§ط³طھظ„ط§ظ… ط§ظ„ظ†ظ‡ط§ط¦ظٹ: ظ„ط¬ظ†ط© ${latestDelivery.committee_number} آ· ${latestDelivery.grade} آ· ط§ظ„ظ…ط³طھظ„ظ…: ${latestDelivery.teacher_name}`
+        : `ط¥ط؛ظ„ط§ظ‚ ط¬ط¯ظٹط¯: ظ„ط¬ظ†ط© ${latestDelivery.committee_number} آ· ${latestDelivery.grade}`;
 
       if (latestDelivery.status === 'CONFIRMED' && pinnedScene === 'map') {
         setPriorityScene({ scene: 'map', until: Date.now() + 8000, label });
@@ -152,7 +152,7 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
       return {
         num,
         grades,
-        proctorName: proctor?.full_name || 'غير مسندة',
+        proctorName: proctor?.full_name || 'ط؛ظٹط± ظ…ط³ظ†ط¯ط©',
         totalStudents: committeeStudents.length,
         absents: committeeAbsences.filter(a => a.type === 'ABSENT').length,
         lates: committeeAbsences.filter(a => a.type === 'LATE').length,
@@ -178,9 +178,10 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
     const absentCount = absences.filter(a => a.type === 'ABSENT').length;
     const lateCount = absences.filter(a => a.type === 'LATE').length;
     const totalStudents = students.length;
-    const presentCount = Math.max(0, totalStudents - absentCount);
-    const attendanceRate = totalStudents ? Math.round((presentCount / totalStudents) * 100) : 0;
-    const absenceRate = totalStudents ? Math.round((absentCount / totalStudents) * 100) : 0;
+    const attendanceIssueCount = absentCount + lateCount;
+    const presentCount = Math.max(0, totalStudents - attendanceIssueCount);
+    const attendanceRate = totalStudents ? Number(((presentCount / totalStudents) * 100).toFixed(1)) : 0;
+    const absenceRate = totalStudents ? Number(((attendanceIssueCount / totalStudents) * 100).toFixed(1)) : 0;
     const progress = total ? Math.round((confirmed / total) * 100) : 0;
 
     const receiptDurations = committees
@@ -199,7 +200,7 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
     ].slice(0, 5);
 
     const alertsByCommittee = requests.reduce((acc, item) => {
-      const key = item.committee || 'غير محدد';
+      const key = item.committee || 'ط؛ظٹط± ظ…ط­ط¯ط¯';
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
@@ -217,6 +218,7 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
       activeRequests,
       absentCount,
       lateCount,
+      attendanceIssueCount,
       totalStudents,
       presentCount,
       attendanceRate,
@@ -233,22 +235,22 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
     const deliveryEvents = deliveryLogs.map(log => ({
       time: log.time,
       tone: log.status === 'CONFIRMED' ? 'emerald' : 'orange',
-      title: log.status === 'CONFIRMED' ? 'استلام نهائي' : 'إغلاق ميداني',
-      text: `لجنة ${log.committee_number} - ${log.grade} - ${log.teacher_name}`,
+      title: log.status === 'CONFIRMED' ? 'ط§ط³طھظ„ط§ظ… ظ†ظ‡ط§ط¦ظٹ' : 'ط¥ط؛ظ„ط§ظ‚ ظ…ظٹط¯ط§ظ†ظٹ',
+      text: `ظ„ط¬ظ†ط© ${log.committee_number} - ${log.grade} - ${log.teacher_name}`,
       icon: log.status === 'CONFIRMED' ? PackageCheck : Truck,
     }));
     const requestEvents = requests.map(req => ({
       time: req.time,
       tone: req.status === 'DONE' ? 'slate' : 'red',
-      title: req.status === 'DONE' ? 'إغلاق بلاغ' : 'بلاغ لجنة',
-      text: `لجنة ${req.committee} - ${req.text}`,
+      title: req.status === 'DONE' ? 'ط¥ط؛ظ„ط§ظ‚ ط¨ظ„ط§ط؛' : 'ط¨ظ„ط§ط؛ ظ„ط¬ظ†ط©',
+      text: `ظ„ط¬ظ†ط© ${req.committee} - ${req.text}`,
       icon: BellRing,
     }));
     const absenceEvents = absences.map(absence => ({
       time: absence.date,
       tone: absence.type === 'ABSENT' ? 'rose' : 'amber',
       title: getAbsenceKindLabel(absence.type),
-      text: `لجنة ${absence.committee_number} - ${absence.student_name}`,
+      text: `ظ„ط¬ظ†ط© ${absence.committee_number} - ${absence.student_name}`,
       icon: absence.type === 'ABSENT' ? UserX : Timer,
     }));
     return [...deliveryEvents, ...requestEvents, ...absenceEvents].sort((a, b) => b.time.localeCompare(a.time)).slice(0, 12);
@@ -256,13 +258,13 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
 
   const newsItems = useMemo(() => {
     const items = [
-      `نسبة الإنجاز الآن ${insights.progress}% من إجمالي اللجان`,
-      insights.urgent ? `${insights.urgent} بلاغ عاجل يحتاج متابعة فورية` : 'لا توجد بلاغات عاجلة حالياً',
-      insights.submitted ? `${insights.submitted} لجنة متجهة للكنترول بانتظار المطابقة` : 'لا توجد لجان في الطريق للكنترول',
-      insights.fastest ? `أسرع استلام: لجنة ${insights.fastest.num} خلال ${insights.fastest.mins} دقيقة` : 'بانتظار اكتمال أول استلام',
+      `ظ†ط³ط¨ط© ط§ظ„ط¥ظ†ط¬ط§ط² ط§ظ„ط¢ظ† ${insights.progress}% ظ…ظ† ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ظ„ط¬ط§ظ†`,
+      insights.urgent ? `${insights.urgent} ط¨ظ„ط§ط؛ ط¹ط§ط¬ظ„ ظٹط­طھط§ط¬ ظ…طھط§ط¨ط¹ط© ظپظˆط±ظٹط©` : 'ظ„ط§ طھظˆط¬ط¯ ط¨ظ„ط§ط؛ط§طھ ط¹ط§ط¬ظ„ط© ط­ط§ظ„ظٹط§ظ‹',
+      insights.submitted ? `${insights.submitted} ظ„ط¬ظ†ط© ظ…طھط¬ظ‡ط© ظ„ظ„ظƒظ†طھط±ظˆظ„ ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ظ…ط·ط§ط¨ظ‚ط©` : 'ظ„ط§ طھظˆط¬ط¯ ظ„ط¬ط§ظ† ظپظٹ ط§ظ„ط·ط±ظٹظ‚ ظ„ظ„ظƒظ†طھط±ظˆظ„',
+      insights.fastest ? `ط£ط³ط±ط¹ ط§ط³طھظ„ط§ظ…: ظ„ط¬ظ†ط© ${insights.fastest.num} ط®ظ„ط§ظ„ ${insights.fastest.mins} ط¯ظ‚ظٹظ‚ط©` : 'ط¨ط§ظ†طھط¸ط§ط± ط§ظƒطھظ…ط§ظ„ ط£ظˆظ„ ط§ط³طھظ„ط§ظ…',
       insights.attendanceHotspot && (insights.attendanceHotspot.absents || insights.attendanceHotspot.lates)
-        ? `أعلى حالات حضور: لجنة ${insights.attendanceHotspot.num} (${insights.attendanceHotspot.absents} غياب، ${insights.attendanceHotspot.lates} تأخير)`
-        : 'حالات الحضور مستقرة حتى الآن',
+        ? `ط£ط¹ظ„ظ‰ ط­ط§ظ„ط§طھ ط­ط¶ظˆط±: ظ„ط¬ظ†ط© ${insights.attendanceHotspot.num} (${insights.attendanceHotspot.absents} ط؛ظٹط§ط¨طŒ ${insights.attendanceHotspot.lates} طھط£ط®ظٹط±)`
+        : 'ط­ط§ظ„ط§طھ ط§ظ„ط­ط¶ظˆط± ظ…ط³طھظ‚ط±ط© ط­طھظ‰ ط§ظ„ط¢ظ†',
     ];
     return [...items, ...items];
   }, [insights]);
@@ -279,12 +281,12 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
   };
 
   const topCards = [
-    { label: 'نسبة الإنجاز', value: `${insights.progress}%`, icon: Gauge, tone: 'text-emerald-300', sub: `${insights.confirmed} من ${insights.total} لجنة` },
-    { label: 'لجان نشطة', value: insights.active, icon: Activity, tone: 'text-blue-300', sub: 'قيد المتابعة' },
-    { label: 'متجه للكنترول', value: insights.submitted, icon: Truck, tone: 'text-orange-300', sub: 'بانتظار المطابقة' },
-    { label: 'بلاغات مفتوحة', value: insights.activeRequests, icon: BellRing, tone: 'text-red-300', sub: `${insights.urgent} عاجل` },
-    { label: 'غياب', value: insights.absentCount, icon: UserX, tone: 'text-rose-300', sub: 'حالات مرصودة' },
-    { label: 'تأخير', value: insights.lateCount, icon: Timer, tone: 'text-amber-300', sub: 'حالات مرصودة' },
+    { label: 'ظ†ط³ط¨ط© ط§ظ„ط¥ظ†ط¬ط§ط²', value: `${insights.progress}%`, icon: Gauge, tone: 'text-emerald-300', sub: `${insights.confirmed} ظ…ظ† ${insights.total} ظ„ط¬ظ†ط©` },
+    { label: 'ظ„ط¬ط§ظ† ظ†ط´ط·ط©', value: insights.active, icon: Activity, tone: 'text-blue-300', sub: 'ظ‚ظٹط¯ ط§ظ„ظ…طھط§ط¨ط¹ط©' },
+    { label: 'ظ…طھط¬ظ‡ ظ„ظ„ظƒظ†طھط±ظˆظ„', value: insights.submitted, icon: Truck, tone: 'text-orange-300', sub: 'ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ظ…ط·ط§ط¨ظ‚ط©' },
+    { label: 'ط¨ظ„ط§ط؛ط§طھ ظ…ظپطھظˆط­ط©', value: insights.activeRequests, icon: BellRing, tone: 'text-red-300', sub: `${insights.urgent} ط¹ط§ط¬ظ„` },
+    { label: 'ط؛ظٹط§ط¨', value: insights.absentCount, icon: UserX, tone: 'text-rose-300', sub: 'ط­ط§ظ„ط§طھ ظ…ط±طµظˆط¯ط©' },
+    { label: 'طھط£ط®ظٹط±', value: insights.lateCount, icon: Timer, tone: 'text-amber-300', sub: 'ط­ط§ظ„ط§طھ ظ…ط±طµظˆط¯ط©' },
   ];
 
   const playCelebrationSound = () => {
@@ -337,7 +339,7 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
       }
       setTimeout(() => ctx.close(), 5200);
     } catch {
-      // الصوت اختياري وقد تمنعه بعض المتصفحات دون تفاعل سابق.
+      // ط§ظ„طµظˆطھ ط§ط®طھظٹط§ط±ظٹ ظˆظ‚ط¯ طھظ…ظ†ط¹ظ‡ ط¨ط¹ط¶ ط§ظ„ظ…طھطµظپط­ط§طھ ط¯ظˆظ† طھظپط§ط¹ظ„ ط³ط§ط¨ظ‚.
     }
   };
 
@@ -365,11 +367,11 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
   );
 
   const sceneLabels: Record<Scene, string> = {
-    overview: 'المؤشرات',
-    map: 'الخريطة',
-    alerts: 'البلاغات',
-    attendance: 'الحضور',
-    timeline: 'السجل',
+    overview: 'ط§ظ„ظ…ط¤ط´ط±ط§طھ',
+    map: 'ط§ظ„ط®ط±ظٹط·ط©',
+    alerts: 'ط§ظ„ط¨ظ„ط§ط؛ط§طھ',
+    attendance: 'ط§ظ„ط­ط¶ظˆط±',
+    timeline: 'ط§ظ„ط³ط¬ظ„',
   };
 
   const togglePinnedScene = (id: Scene) => {
@@ -395,17 +397,17 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
                     <Trophy size={68} strokeWidth={3} />
                   </div>
                   <div>
-                    <p className="text-xl font-black text-emerald-100/90">تم اكتمال اليوم الاختباري</p>
+                    <p className="text-xl font-black text-emerald-100/90">طھظ… ط§ظƒطھظ…ط§ظ„ ط§ظ„ظٹظˆظ… ط§ظ„ط§ط®طھط¨ط§ط±ظٹ</p>
                     <h2 className="tv2-celebration-title mt-3 text-6xl md:text-7xl font-black tracking-tight text-white leading-[1.08]">
-                      <span className="block">اكتملت جميع اللجان شكراً</span>
-                      <span className="block">للجميع</span>
+                      <span className="block">ط§ظƒطھظ…ظ„طھ ط¬ظ…ظٹط¹ ط§ظ„ظ„ط¬ط§ظ† ط´ظƒط±ط§ظ‹</span>
+                      <span className="block">ظ„ظ„ط¬ظ…ظٹط¹</span>
                     </h2>
-                    <p className="mt-5 text-2xl font-black text-white/85">تصفيق حار لفريق الكنترول والمراقبين على إنجاز الاستلام بالكامل.</p>
+                    <p className="mt-5 text-2xl font-black text-white/85">طھطµظپظٹظ‚ ط­ط§ط± ظ„ظپط±ظٹظ‚ ط§ظ„ظƒظ†طھط±ظˆظ„ ظˆط§ظ„ظ…ط±ط§ظ‚ط¨ظٹظ† ط¹ظ„ظ‰ ط¥ظ†ط¬ط§ط² ط§ظ„ط§ط³طھظ„ط§ظ… ط¨ط§ظ„ظƒط§ظ…ظ„.</p>
                   </div>
                   <div className="grid grid-cols-3 gap-4 max-w-3xl mx-auto">
-                    <div className="rounded-[1.8rem] bg-emerald-400/18 p-5 backdrop-blur-md"><p className="text-5xl font-black">{insights.confirmed}</p><p className="text-xs font-black text-emerald-50">لجان مكتملة</p></div>
-                    <div className="rounded-[1.8rem] bg-cyan-400/16 p-5 backdrop-blur-md"><p className="text-5xl font-black">{students.length}</p><p className="text-xs font-black text-cyan-50">طالب ضمن اليوم</p></div>
-                    <div className="rounded-[1.8rem] bg-orange-400/16 p-5 backdrop-blur-md"><p className="text-5xl font-black">{insights.absentCount + insights.lateCount}</p><p className="text-xs font-black text-orange-50">حالات متابعة</p></div>
+                    <div className="rounded-[1.8rem] bg-emerald-400/18 p-5 backdrop-blur-md"><p className="text-5xl font-black">{insights.confirmed}</p><p className="text-xs font-black text-emerald-50">ظ„ط¬ط§ظ† ظ…ظƒطھظ…ظ„ط©</p></div>
+                    <div className="rounded-[1.8rem] bg-cyan-400/16 p-5 backdrop-blur-md"><p className="text-5xl font-black">{students.length}</p><p className="text-xs font-black text-cyan-50">ط·ط§ظ„ط¨ ط¶ظ…ظ† ط§ظ„ظٹظˆظ…</p></div>
+                    <div className="rounded-[1.8rem] bg-orange-400/16 p-5 backdrop-blur-md"><p className="text-5xl font-black">{insights.absentCount + insights.lateCount}</p><p className="text-xs font-black text-orange-50">ط­ط§ظ„ط§طھ ظ…طھط§ط¨ط¹ط©</p></div>
                   </div>
                 </div>
               </div>
@@ -419,8 +421,8 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
               <MonitorPlay size={30} />
             </div>
             <div>
-              <p className="text-xs font-black text-orange-200">TV2 العرض الذكي</p>
-              <h1 className="text-3xl font-black tracking-tight">غرفة الكنترول الحية</h1>
+              <p className="text-xs font-black text-orange-200">TV2 ط§ظ„ط¹ط±ط¶ ط§ظ„ط°ظƒظٹ</p>
+              <h1 className="text-3xl font-black tracking-tight">ط؛ط±ظپط© ط§ظ„ظƒظ†طھط±ظˆظ„ ط§ظ„ط­ظٹط©</h1>
             </div>
           </div>
 
@@ -429,18 +431,18 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
               {priorityScene ? <BellRing size={18} className="animate-pulse text-orange-300" /> : <Radio size={18} className="animate-pulse text-emerald-300" />}
               <span>
                 {priorityScene
-                  ? `${priorityScene.label} · يعود العرض تلقائيًا بعد قليل`
+                  ? `${priorityScene.label} آ· ظٹط¹ظˆط¯ ط§ظ„ط¹ط±ط¶ طھظ„ظ‚ط§ط¦ظٹظ‹ط§ ط¨ط¹ط¯ ظ‚ظ„ظٹظ„`
                   : pinnedScene
-                    ? `مثبت الآن على شاشة ${sceneLabels[pinnedScene]}`
-                    : 'عرض تلقائي متزامن مع اللجان والبلاغات والاستلام'}
+                    ? `ظ…ط«ط¨طھ ط§ظ„ط¢ظ† ط¹ظ„ظ‰ ط´ط§ط´ط© ${sceneLabels[pinnedScene]}`
+                    : 'ط¹ط±ط¶ طھظ„ظ‚ط§ط¦ظٹ ظ…طھط²ط§ظ…ظ† ظ…ط¹ ط§ظ„ظ„ط¬ط§ظ† ظˆط§ظ„ط¨ظ„ط§ط؛ط§طھ ظˆط§ظ„ط§ط³طھظ„ط§ظ…'}
               </span>
             </div>
             <div className="mx-auto mb-3 flex max-w-xl gap-2">
-              <SceneBadge id="overview" label="المؤشرات" />
-              <SceneBadge id="map" label="الخريطة" />
-              <SceneBadge id="alerts" label="البلاغات" />
-              <SceneBadge id="attendance" label="الحضور" />
-              <SceneBadge id="timeline" label="السجل" />
+              <SceneBadge id="overview" label="ط§ظ„ظ…ط¤ط´ط±ط§طھ" />
+              <SceneBadge id="map" label="ط§ظ„ط®ط±ظٹط·ط©" />
+              <SceneBadge id="alerts" label="ط§ظ„ط¨ظ„ط§ط؛ط§طھ" />
+              <SceneBadge id="attendance" label="ط§ظ„ط­ط¶ظˆط±" />
+              <SceneBadge id="timeline" label="ط§ظ„ط³ط¬ظ„" />
             </div>
             <div className="mx-auto flex max-w-4xl items-center justify-center gap-2">
               {sceneOrder.map(id => (
@@ -456,14 +458,14 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
                   }`}
                 >
                   {pinnedScene === id ? <PinOff size={13} /> : <Pin size={13} />}
-                  {pinnedScene === id ? 'مثبت' : sceneLabels[id]}
+                  {pinnedScene === id ? 'ظ…ط«ط¨طھ' : sceneLabels[id]}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] px-6 py-4 text-left shadow-2xl backdrop-blur-xl">
-            <p className="text-xs font-black text-slate-400">الوقت الآن</p>
+            <p className="text-xs font-black text-slate-400">ط§ظ„ظˆظ‚طھ ط§ظ„ط¢ظ†</p>
             <p className="font-mono text-4xl font-black tabular-nums text-orange-200">
               {now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </p>
@@ -495,7 +497,7 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
               <p className="text-sm font-black">{priorityScene.label}</p>
             </div>
             <p className="text-[11px] font-black text-orange-200">
-              أولوية لحظية · ثم يكمل العرض {pinnedScene ? `إلى شاشة ${sceneLabels[pinnedScene]}` : 'التنقل التلقائي'}
+              ط£ظˆظ„ظˆظٹط© ظ„ط­ط¸ظٹط© آ· ط«ظ… ظٹظƒظ…ظ„ ط§ظ„ط¹ط±ط¶ {pinnedScene ? `ط¥ظ„ظ‰ ط´ط§ط´ط© ${sceneLabels[pinnedScene]}` : 'ط§ظ„طھظ†ظ‚ظ„ ط§ظ„طھظ„ظ‚ط§ط¦ظٹ'}
             </p>
           </div>
         )}
@@ -506,8 +508,8 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
               <div className="col-span-7 rounded-[3rem] border border-white/10 bg-white/[0.04] p-8 shadow-2xl backdrop-blur-xl">
                 <div className="mb-8 flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-black text-orange-200">المؤشر العام</p>
-                    <h2 className="text-5xl font-black tracking-tight">نبض اليوم الاختباري</h2>
+                    <p className="text-sm font-black text-orange-200">ط§ظ„ظ…ط¤ط´ط± ط§ظ„ط¹ط§ظ…</p>
+                    <h2 className="text-5xl font-black tracking-tight">ظ†ط¨ط¶ ط§ظ„ظٹظˆظ… ط§ظ„ط§ط®طھط¨ط§ط±ظٹ</h2>
                   </div>
                   <Sparkles size={44} className="text-orange-300" />
                 </div>
@@ -521,15 +523,15 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
                     <div className="absolute inset-12 rounded-full bg-[#020617]" />
                     <div className="relative text-center">
                       <p className="text-7xl font-black tabular-nums">{insights.progress}%</p>
-                      <p className="text-xs font-black text-slate-400">اكتمال الاستلام</p>
+                      <p className="text-xs font-black text-slate-400">ط§ظƒطھظ…ط§ظ„ ط§ظ„ط§ط³طھظ„ط§ظ…</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     {[
-                      ['مكتملة', insights.confirmed, 'bg-emerald-500/15 text-emerald-200 border-emerald-400/20'],
-                      ['نشطة', insights.active, 'bg-blue-500/15 text-blue-200 border-blue-400/20'],
-                      ['في الطريق', insights.submitted, 'bg-orange-500/15 text-orange-200 border-orange-400/20'],
-                      ['غير مسندة', insights.idle, 'bg-slate-500/15 text-slate-200 border-slate-400/20'],
+                      ['ظ…ظƒطھظ…ظ„ط©', insights.confirmed, 'bg-emerald-500/15 text-emerald-200 border-emerald-400/20'],
+                      ['ظ†ط´ط·ط©', insights.active, 'bg-blue-500/15 text-blue-200 border-blue-400/20'],
+                      ['ظپظٹ ط§ظ„ط·ط±ظٹظ‚', insights.submitted, 'bg-orange-500/15 text-orange-200 border-orange-400/20'],
+                      ['ط؛ظٹط± ظ…ط³ظ†ط¯ط©', insights.idle, 'bg-slate-500/15 text-slate-200 border-slate-400/20'],
                     ].map(([label, value, cls]) => (
                       <div key={String(label)} className={`rounded-[2rem] border p-6 ${cls}`}>
                         <p className="text-xs font-black opacity-70">{label}</p>
@@ -544,27 +546,27 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
                 <div className="rounded-[3rem] border border-white/10 bg-gradient-to-br from-orange-500/20 to-red-500/10 p-7 shadow-2xl">
                   <div className="mb-5 flex items-center gap-3">
                     <Flame size={34} className="text-orange-300" />
-                    <h3 className="text-3xl font-black">أبرز لقطة</h3>
+                    <h3 className="text-3xl font-black">ط£ط¨ط±ط² ظ„ظ‚ط·ط©</h3>
                   </div>
                   <p className="text-lg font-bold leading-9 text-orange-50">
                     {insights.fastest
-                      ? `أسرع استلام حتى الآن للجنة ${insights.fastest.num} خلال ${insights.fastest.mins} دقيقة.`
+                      ? `ط£ط³ط±ط¹ ط§ط³طھظ„ط§ظ… ط­طھظ‰ ط§ظ„ط¢ظ† ظ„ظ„ط¬ظ†ط© ${insights.fastest.num} ط®ظ„ط§ظ„ ${insights.fastest.mins} ط¯ظ‚ظٹظ‚ط©.`
                       : insights.submitted
-                        ? `${insights.submitted} لجنة أغلقت ميدانيًا وتتجه للكنترول.`
-                        : 'بانتظار اكتمال أول عملية استلام نهائية.'}
+                        ? `${insights.submitted} ظ„ط¬ظ†ط© ط£ط؛ظ„ظ‚طھ ظ…ظٹط¯ط§ظ†ظٹظ‹ط§ ظˆطھطھط¬ظ‡ ظ„ظ„ظƒظ†طھط±ظˆظ„.`
+                        : 'ط¨ط§ظ†طھط¸ط§ط± ط§ظƒطھظ…ط§ظ„ ط£ظˆظ„ ط¹ظ…ظ„ظٹط© ط§ط³طھظ„ط§ظ… ظ†ظ‡ط§ط¦ظٹط©.'}
                   </p>
                 </div>
                 <div className="rounded-[3rem] border border-white/10 bg-white/[0.04] p-7 shadow-2xl">
                   <div className="mb-5 flex items-center gap-3">
                     <Zap size={34} className="text-cyan-300" />
-                    <h3 className="text-3xl font-black">تنبيه ذكي</h3>
+                    <h3 className="text-3xl font-black">طھظ†ط¨ظٹظ‡ ط°ظƒظٹ</h3>
                   </div>
                   <p className="text-lg font-bold leading-9 text-slate-200">
                     {insights.topAlert
-                      ? `لجنة ${insights.topAlert.committee} هي الأكثر بلاغًا اليوم بعدد ${insights.topAlert.count} بلاغ.`
+                      ? `ظ„ط¬ظ†ط© ${insights.topAlert.committee} ظ‡ظٹ ط§ظ„ط£ظƒط«ط± ط¨ظ„ط§ط؛ظ‹ط§ ط§ظ„ظٹظˆظ… ط¨ط¹ط¯ط¯ ${insights.topAlert.count} ط¨ظ„ط§ط؛.`
                       : insights.attendanceHotspot && (insights.attendanceHotspot.absents || insights.attendanceHotspot.lates)
-                        ? `أعلى حالات حضور في لجنة ${insights.attendanceHotspot.num}.`
-                        : 'الوضع مستقر ولا توجد نقاط حرجة بارزة الآن.'}
+                        ? `ط£ط¹ظ„ظ‰ ط­ط§ظ„ط§طھ ط­ط¶ظˆط± ظپظٹ ظ„ط¬ظ†ط© ${insights.attendanceHotspot.num}.`
+                        : 'ط§ظ„ظˆط¶ط¹ ظ…ط³طھظ‚ط± ظˆظ„ط§ طھظˆط¬ط¯ ظ†ظ‚ط§ط· ط­ط±ط¬ط© ط¨ط§ط±ط²ط© ط§ظ„ط¢ظ†.'}
                   </p>
                 </div>
               </div>
@@ -577,15 +579,15 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
                 <div className="flex items-center gap-4">
                   <LayoutGrid size={44} className="text-cyan-300" />
                   <div>
-                    <h2 className="text-5xl font-black">خريطة اللجان الحية</h2>
-                    <p className="mt-2 text-sm font-black text-slate-400">الألوان: أزرق نشطة، أخضر مكتملة، برتقالي متجهة، أحمر بلاغ، رمادي غير مسندة.</p>
+                    <h2 className="text-5xl font-black">ط®ط±ظٹط·ط© ط§ظ„ظ„ط¬ط§ظ† ط§ظ„ط­ظٹط©</h2>
+                    <p className="mt-2 text-sm font-black text-slate-400">ط§ظ„ط£ظ„ظˆط§ظ†: ط£ط²ط±ظ‚ ظ†ط´ط·ط©طŒ ط£ط®ط¶ط± ظ…ظƒطھظ…ظ„ط©طŒ ط¨ط±طھظ‚ط§ظ„ظٹ ظ…طھط¬ظ‡ط©طŒ ط£ط­ظ…ط± ط¨ظ„ط§ط؛طŒ ط±ظ…ط§ط¯ظٹ ط؛ظٹط± ظ…ط³ظ†ط¯ط©.</p>
                   </div>
                 </div>
                 <div className="flex gap-3 text-xs font-black">
-                  <span className="rounded-full bg-blue-500 px-4 py-2">نشطة</span>
-                  <span className="rounded-full bg-orange-500 px-4 py-2">متجهة</span>
-                  <span className="rounded-full bg-red-600 px-4 py-2">بلاغ</span>
-                  <span className="rounded-full bg-emerald-500 px-4 py-2">مكتملة</span>
+                  <span className="rounded-full bg-blue-500 px-4 py-2">ظ†ط´ط·ط©</span>
+                  <span className="rounded-full bg-orange-500 px-4 py-2">ظ…طھط¬ظ‡ط©</span>
+                  <span className="rounded-full bg-red-600 px-4 py-2">ط¨ظ„ط§ط؛</span>
+                  <span className="rounded-full bg-emerald-500 px-4 py-2">ظ…ظƒطھظ…ظ„ط©</span>
                 </div>
               </div>
               <div className="tv2-map-grid grid h-[calc(100%-7rem)] grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-5 overflow-hidden">
@@ -597,17 +599,17 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
                     {c.status === 'submitted' && (c.hasPendingAlert || c.hasInProgressAlert) && (
                       <div className="absolute left-3 top-12 flex items-center gap-1 rounded-full bg-red-600 px-2.5 py-1 text-[9px] font-black text-white shadow-[0_0_18px_rgba(220,38,38,.55)]">
                         <BellRing size={12} />
-                        بلاغ
+                        ط¨ظ„ط§ط؛
                       </div>
                     )}
                     <div className="relative z-10 flex h-full flex-col justify-between">
                       <div>
-                        <p className="text-sm font-black opacity-75">لجنة</p>
+                        <p className="text-sm font-black opacity-75">ظ„ط¬ظ†ط©</p>
                         <p className="text-7xl font-black leading-none tabular-nums">{c.num}</p>
                       </div>
                       <div className="rounded-2xl bg-slate-950/22 px-3 py-2 backdrop-blur-sm">
                         <p className="tv2-proctor-name text-sm font-black leading-5 text-white drop-shadow-sm">{c.proctorName}</p>
-                        <p className="mt-1 text-[11px] font-black opacity-75">{c.totalStudents} طالب · {c.grades.length} صف</p>
+                        <p className="mt-1 text-[11px] font-black opacity-75">{c.totalStudents} ط·ط§ظ„ط¨ آ· {c.grades.length} طµظپ</p>
                       </div>
                     </div>
                   </div>
@@ -622,15 +624,15 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
                 <div className="mb-7 flex items-center gap-4">
                   <BellRing size={44} className="animate-pulse text-red-300" />
                   <div>
-                    <h2 className="text-5xl font-black">لوحة البلاغات</h2>
-                    <p className="mt-2 text-sm font-black text-red-100">متابعة البلاغات المفتوحة والمغلقة خلال اليوم.</p>
+                    <h2 className="text-5xl font-black">ظ„ظˆط­ط© ط§ظ„ط¨ظ„ط§ط؛ط§طھ</h2>
+                    <p className="mt-2 text-sm font-black text-red-100">ظ…طھط§ط¨ط¹ط© ط§ظ„ط¨ظ„ط§ط؛ط§طھ ط§ظ„ظ…ظپطھظˆط­ط© ظˆط§ظ„ظ…ط؛ظ„ظ‚ط© ط®ظ„ط§ظ„ ط§ظ„ظٹظˆظ….</p>
                   </div>
                 </div>
                 <div className="space-y-4 overflow-hidden">
                   {[...requests].sort((a, b) => b.time.localeCompare(a.time)).length ? [...requests].sort((a, b) => b.time.localeCompare(a.time)).slice(0, 6).map(req => (
                     <div key={req.id} className={`rounded-[2rem] border p-5 ${req.status === 'DONE' ? 'border-white/10 bg-white/5 opacity-60' : 'border-red-300/30 bg-red-600/20'}`}>
                       <div className="mb-3 flex items-center justify-between">
-                        <span className="rounded-2xl bg-slate-950 px-5 py-2 text-xl font-black">لجنة {req.committee}</span>
+                        <span className="rounded-2xl bg-slate-950 px-5 py-2 text-xl font-black">ظ„ط¬ظ†ط© {req.committee}</span>
                         <span className="font-mono text-sm font-black text-red-100">{formatTime(req.time)}</span>
                       </div>
                       <p className="text-2xl font-black leading-9">{req.text}</p>
@@ -640,14 +642,14 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
                     <div className="grid h-96 place-items-center rounded-[3rem] border border-emerald-400/20 bg-emerald-500/10 text-center">
                       <div>
                         <CheckCircle2 size={90} className="mx-auto text-emerald-300" />
-                        <p className="mt-5 text-4xl font-black">لا توجد بلاغات</p>
+                        <p className="mt-5 text-4xl font-black">ظ„ط§ طھظˆط¬ط¯ ط¨ظ„ط§ط؛ط§طھ</p>
                       </div>
                     </div>
                   )}
                 </div>
               </div>
               <div className="col-span-5 rounded-[3rem] border border-white/10 bg-white/[0.04] p-8 shadow-2xl">
-                <h3 className="mb-6 text-4xl font-black">أكثر اللجان احتياجًا للمتابعة</h3>
+                <h3 className="mb-6 text-4xl font-black">ط£ظƒط«ط± ط§ظ„ظ„ط¬ط§ظ† ط§ط­طھظٹط§ط¬ظ‹ط§ ظ„ظ„ظ…طھط§ط¨ط¹ط©</h3>
                 <div className="space-y-4">
                   {committees
                     .filter(c => c.status === 'alert' || c.absents || c.lates || c.status === 'submitted')
@@ -655,14 +657,14 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
                     .map(c => (
                       <div key={c.num} className="flex items-center justify-between rounded-[2rem] border border-white/10 bg-white/[0.04] p-5">
                         <div>
-                          <p className="text-2xl font-black">لجنة {c.num}</p>
+                          <p className="text-2xl font-black">ظ„ط¬ظ†ط© {c.num}</p>
                           <p className="text-xs font-bold text-slate-400">{c.proctorName}</p>
                         </div>
                         <div className="flex gap-2 text-xs font-black">
-                          {c.absents > 0 && <span className="rounded-xl bg-rose-500 px-3 py-2">{c.absents} غياب</span>}
-                          {c.lates > 0 && <span className="rounded-xl bg-amber-500 px-3 py-2">{c.lates} تأخير</span>}
-                          {c.status === 'submitted' && <span className="rounded-xl bg-orange-500 px-3 py-2">في الطريق</span>}
-                          {c.status === 'alert' && <span className="rounded-xl bg-red-600 px-3 py-2">بلاغ</span>}
+                          {c.absents > 0 && <span className="rounded-xl bg-rose-500 px-3 py-2">{c.absents} ط؛ظٹط§ط¨</span>}
+                          {c.lates > 0 && <span className="rounded-xl bg-amber-500 px-3 py-2">{c.lates} طھط£ط®ظٹط±</span>}
+                          {c.status === 'submitted' && <span className="rounded-xl bg-orange-500 px-3 py-2">ظپظٹ ط§ظ„ط·ط±ظٹظ‚</span>}
+                          {c.status === 'alert' && <span className="rounded-xl bg-red-600 px-3 py-2">ط¨ظ„ط§ط؛</span>}
                         </div>
                       </div>
                     ))}
@@ -677,43 +679,43 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
                 <div className="mb-8 flex items-center gap-4">
                   <Users size={44} className="text-amber-300" />
                   <div>
-                    <h2 className="text-5xl font-black">الحضور والغياب</h2>
-                    <p className="mt-2 text-sm font-black text-slate-400">استلام الغياب والتأخير يظهر مباشرة.</p>
+                    <h2 className="text-5xl font-black">ط§ظ„ط­ط¶ظˆط± ظˆط§ظ„ط؛ظٹط§ط¨</h2>
+                    <p className="mt-2 text-sm font-black text-slate-400">ط§ط³طھظ„ط§ظ… ط§ظ„ط؛ظٹط§ط¨ ظˆط§ظ„طھط£ط®ظٹط± ظٹط¸ظ‡ط± ظ…ط¨ط§ط´ط±ط©.</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-5">
                   <div className="rounded-[3rem] bg-rose-500/15 p-8 text-center text-rose-100">
                     <UserX size={54} className="mx-auto mb-4" />
                     <p className="text-7xl font-black">{insights.absentCount}</p>
-                    <p className="text-sm font-black">غياب</p>
+                    <p className="text-sm font-black">ط؛ظٹط§ط¨</p>
                   </div>
                   <div className="rounded-[3rem] bg-amber-500/15 p-8 text-center text-amber-100">
                     <Timer size={54} className="mx-auto mb-4" />
                     <p className="text-7xl font-black">{insights.lateCount}</p>
-                    <p className="text-sm font-black">تأخير</p>
+                    <p className="text-sm font-black">طھط£ط®ظٹط±</p>
                   </div>
                 </div>
                 <div className="mt-5 rounded-[3rem] border border-emerald-300/20 bg-emerald-500/12 p-8 text-center text-emerald-50 shadow-[0_0_45px_rgba(16,185,129,.08)]">
                   <UserCheck size={58} className="mx-auto mb-4 text-emerald-200" />
-                  <p className="text-[11px] font-black uppercase tracking-[0.25em] text-emerald-200/75">إجمالي الحضور</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.25em] text-emerald-200/75">ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط­ط¶ظˆط±</p>
                   <p className="mt-2 text-8xl font-black leading-none tabular-nums">{insights.presentCount}</p>
-                  <p className="mt-3 text-sm font-black text-emerald-100/70">من أصل {insights.totalStudents} طالب</p>
+                  <p className="mt-3 text-sm font-black text-emerald-100/70">ظ…ظ† ط£طµظ„ {insights.totalStudents} ط·ط§ظ„ط¨</p>
                 </div>
                 <div className="mt-5 grid grid-cols-2 gap-5">
                   <div className="rounded-[2.5rem] border border-cyan-300/20 bg-cyan-500/12 p-6 text-center text-cyan-50">
                     <Gauge size={40} className="mx-auto mb-3 text-cyan-200" />
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/70">نسبة الحضور</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/70">ظ†ط³ط¨ط© ط§ظ„ط­ط¶ظˆط±</p>
                     <p className="mt-2 text-6xl font-black tabular-nums">{insights.attendanceRate}%</p>
                   </div>
                   <div className="rounded-[2.5rem] border border-rose-300/20 bg-rose-500/12 p-6 text-center text-rose-50">
                     <UserX size={40} className="mx-auto mb-3 text-rose-200" />
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-100/70">نسبة الغياب</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-100/70">نسبة الغياب والتأخير</p>
                     <p className="mt-2 text-6xl font-black tabular-nums">{insights.absenceRate}%</p>
                   </div>
                 </div>
               </div>
               <div className="col-span-7 rounded-[3rem] border border-white/10 bg-white/[0.04] p-8 shadow-2xl">
-                <h3 className="mb-6 text-4xl font-black">آخر حالات الغياب والتأخير</h3>
+                <h3 className="mb-6 text-4xl font-black">ط¢ط®ط± ط­ط§ظ„ط§طھ ط§ظ„ط؛ظٹط§ط¨ ظˆط§ظ„طھط£ط®ظٹط±</h3>
                 <div className="space-y-4 overflow-hidden">
                   {[...absences].sort((a, b) => b.date.localeCompare(a.date)).length ? [...absences].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7).map(a => {
                     const receipt = getAbsenceReceipt(a);
@@ -721,12 +723,12 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
                       <div key={a.id} className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-[2rem] border border-white/10 bg-white/[0.04] p-5">
                         <div>
                           <p className="text-2xl font-black">{a.student_name}</p>
-                          <p className="mt-1 text-xs font-bold text-slate-400">لجنة {a.committee_number} · {formatTime(a.date)}</p>
+                          <p className="mt-1 text-xs font-bold text-slate-400">ظ„ط¬ظ†ط© {a.committee_number} آ· {formatTime(a.date)}</p>
                         </div>
                         <div className="flex items-center gap-3">
                           <span className={`rounded-2xl px-4 py-2 text-xs font-black ${a.type === 'ABSENT' ? 'bg-rose-500' : 'bg-amber-500'}`}>{getAbsenceKindLabel(a.type)}</span>
                           <span className={`rounded-2xl px-4 py-2 text-xs font-black ${receipt ? 'bg-emerald-500/20 text-emerald-200' : 'bg-orange-500/20 text-orange-200 animate-pulse'}`}>
-                            {receipt ? `استلمه ${receipt.by}` : 'بانتظار الاستلام'}
+                            {receipt ? `ط§ط³طھظ„ظ…ظ‡ ${receipt.by}` : 'ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ط§ط³طھظ„ط§ظ…'}
                           </span>
                         </div>
                       </div>
@@ -735,7 +737,7 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
                     <div className="grid h-96 place-items-center rounded-[3rem] border border-emerald-400/20 bg-emerald-500/10 text-center">
                       <div>
                         <ShieldCheck size={90} className="mx-auto text-emerald-300" />
-                        <p className="mt-5 text-4xl font-black">لا توجد حالات مسجلة</p>
+                        <p className="mt-5 text-4xl font-black">ظ„ط§ طھظˆط¬ط¯ ط­ط§ظ„ط§طھ ظ…ط³ط¬ظ„ط©</p>
                       </div>
                     </div>
                   )}
@@ -749,8 +751,8 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
               <div className="mb-7 flex items-center gap-4">
                 <Clock3 size={44} className="text-cyan-300" />
                 <div>
-                  <h2 className="text-5xl font-black">الشريط الزمني للعمليات</h2>
-                  <p className="mt-2 text-sm font-black text-slate-400">آخر حركة في النظام خلال اليوم.</p>
+                  <h2 className="text-5xl font-black">ط§ظ„ط´ط±ظٹط· ط§ظ„ط²ظ…ظ†ظٹ ظ„ظ„ط¹ظ…ظ„ظٹط§طھ</h2>
+                  <p className="mt-2 text-sm font-black text-slate-400">ط¢ط®ط± ط­ط±ظƒط© ظپظٹ ط§ظ„ظ†ط¸ط§ظ… ط®ظ„ط§ظ„ ط§ظ„ظٹظˆظ….</p>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-5">
@@ -887,3 +889,4 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
 };
 
 export default ControlRoomMonitor2;
+
