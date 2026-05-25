@@ -44,7 +44,15 @@ interface ControlManagerProps {
 const ControlManager: React.FC<ControlManagerProps> = ({ 
   users, deliveryLogs, students, onBroadcast, onUpdateUserGrades, systemConfig, absences, supervisions, smartSupervisions, requests = [], setDeliveryLogs, setSystemConfig, onRemoveSupervision, onAssignProctor, onCommitSmartDistribution, onDeleteSmartDistributions
 }) => {
-  const [activeTab, setActiveTab] = useState<'cockpit' | 'ops-center' | 'assignments' | 'emergency-receipt' | 'comms' | 'proctors-mgmt'>('cockpit');
+  type ControlTab = 'cockpit' | 'ops-center' | 'assignments' | 'emergency-receipt' | 'comms' | 'proctors-mgmt';
+  const [activeTab, setActiveTabState] = useState<ControlTab>(() => {
+    const saved = localStorage.getItem('control_manager_active_tab') as ControlTab | null;
+    return saved || 'cockpit';
+  });
+  const setActiveTab = (tab: ControlTab) => {
+    setActiveTabState(tab);
+    localStorage.setItem('control_manager_active_tab', tab);
+  };
   const [broadcastTarget, setBroadcastTarget] = useState<UserRole | 'ALL'>('ALL');
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [broadcastTone, setBroadcastTone] = useState<'INFO' | 'URGENT' | 'REMINDER' | 'THANKS'>('INFO');

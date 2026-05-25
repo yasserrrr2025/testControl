@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   CalendarPlus,
   Check,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Student, Supervision, User } from '../../types';
 import { supabase } from '../../supabase';
+import { APP_CONFIG } from '../../constants';
 
 export interface SmartExamSlot {
   id: string;
@@ -49,6 +51,36 @@ interface Props {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+const formatOfficialDate = (date: string) => {
+  const key = date || today();
+  const [year, month, day] = key.split('-');
+  return `${year}/${month}/${day}`;
+};
+
+const getArabicDay = (date: string) => (
+  new Date(`${date || today()}T12:00:00`).toLocaleDateString('ar-SA', { weekday: 'long' })
+);
+
+const OfficialDistributionHeader: React.FC<{ date: string }> = ({ date }) => (
+  <div className="distribution-official-header">
+    <div className="official-side official-right">
+      <div>المملكة العربية السعودية</div>
+      <div>وزارة التعليم</div>
+      <div>إدارة التعليم بمحافظة جدة</div>
+      <div>مدرسة عماد الدين زنكي المتوسطة</div>
+    </div>
+    <div className="official-logo">
+      <img src={APP_CONFIG.LOGO_URL} alt="وزارة التعليم" />
+      <div>نظام كنترول الاختبارات</div>
+    </div>
+    <div className="official-side official-left">
+      <div>التاريخ: {formatOfficialDate(date)}</div>
+      <div>اليوم: {getArabicDay(date)}</div>
+      <div>العام الدراسي: 1446 / 1447</div>
+    </div>
+  </div>
+);
+
 const SmartProctorDistribution: React.FC<Props> = ({
   users,
   students,
@@ -79,6 +111,7 @@ const SmartProctorDistribution: React.FC<Props> = ({
   const [replaceExisting, setReplaceExisting] = useState(false);
   const [distributionDateFilter, setDistributionDateFilter] = useState(activeDate || today());
   const [distributionSubjectFilter, setDistributionSubjectFilter] = useState('');
+  const [isPrintingDistribution, setIsPrintingDistribution] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [isCommitting, setIsCommitting] = useState(false);
 
@@ -154,6 +187,14 @@ const SmartProctorDistribution: React.FC<Props> = ({
         return Number(a.committeeNumber) - Number(b.committeeNumber);
       });
   }, [supervisions, users, distributionDateFilter, distributionSubjectFilter]);
+  const controlHeadName = users.find(u => u.role === 'CONTROL_MANAGER')?.full_name || 'رئيس الكنترول';
+  const schoolManagerName = users.find(u => u.role === 'ADMIN')?.full_name || 'مدير المدرسة';
+  const printPages = useMemo(() => {
+    const pageSize = 28;
+    const pages = [];
+    for (let i = 0; i < committedRows.length; i += pageSize) pages.push(committedRows.slice(i, i + pageSize));
+    return pages.length ? pages : [[]];
+  }, [committedRows]);
   const toggleExcluded = (date: string, userId: string) => {
     setExcludedByDate(prev => {
       const current = prev[date] || [];
@@ -283,9 +324,24 @@ const SmartProctorDistribution: React.FC<Props> = ({
     } : p));
   };
 
-  const printReport = () => {
-    window.print();
+  const printOfficialDistribution = () => {
+    if (!committedRows.length) return;
+    setIsPrintingDistribution(true);
+    requestAnimationFrame(() => {
+      setTimeout(() => window.print(), 700);
+    });
   };
+
+  useEffect(() => {
+    const cleanup = () => setIsPrintingDistribution(false);
+    window.addEventListener('afterprint', cleanup);
+    return () => window.removeEventListener('afterprint', cleanup);
+  }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle('printing-proctor-distribution', isPrintingDistribution);
+    return () => document.body.classList.remove('printing-proctor-distribution');
+  }, [isPrintingDistribution]);
 
   const deleteSupervisionRows = async (ids: string[]) => {
     if (!ids.length) return;
@@ -298,7 +354,7 @@ const SmartProctorDistribution: React.FC<Props> = ({
       alert(error.message);
       return;
     }
-    window.location.reload();
+    alert('تم الحذف، حدّث البيانات من مركز القيادة عند الحاجة.');
   };
 
   const commitPreview = async () => {
@@ -334,8 +390,8 @@ const SmartProctorDistribution: React.FC<Props> = ({
             <button onClick={commitPreview} disabled={!preview.length || isCommitting} className="px-6 py-3 rounded-2xl bg-emerald-600 text-white font-black text-xs flex items-center gap-2 shadow-lg hover:bg-emerald-700 disabled:opacity-40">
               {isCommitting ? <RefreshCcw size={18} className="animate-spin" /> : <Check size={18} />} ربط باللجان
             </button>
-            <button onClick={printReport} disabled={!preview.length} className="px-6 py-3 rounded-2xl bg-slate-950 text-white font-black text-xs flex items-center gap-2 shadow-lg disabled:opacity-40">
-              <Printer size={18} /> طباعة
+            <button onClick={printOfficialDistribution} disabled={!committedRows.length} className="px-6 py-3 rounded-2xl bg-slate-950 text-white font-black text-xs flex items-center gap-2 shadow-lg disabled:opacity-40">
+              <Printer size={18} /> طباعة التقرير
             </button>
           </div>
         </div>
@@ -492,7 +548,7 @@ const SmartProctorDistribution: React.FC<Props> = ({
               <option value="">كل المواد</option>
               {subjectOptions.map(subject => <option key={subject} value={subject}>{subject}</option>)}
             </select>
-            <button onClick={printReport} disabled={!committedRows.length} className="px-5 py-3 rounded-2xl bg-slate-950 text-white font-black text-xs flex items-center gap-2 disabled:opacity-40"><Printer size={18} /> طباعة التقرير</button>
+            <button onClick={printOfficialDistribution} disabled={!committedRows.length} className="px-5 py-3 rounded-2xl bg-slate-950 text-white font-black text-xs flex items-center gap-2 disabled:opacity-40"><Printer size={18} /> طباعة التقرير</button>
             <button
               onClick={() => {
                 if (!committedRows.length) return;
@@ -569,6 +625,99 @@ const SmartProctorDistribution: React.FC<Props> = ({
           </div>
         )}
       </div>
+
+      {isPrintingDistribution && createPortal(
+        <div id="proctor-distribution-print">
+          <style>{`
+            @media screen { #proctor-distribution-print { display: none !important; } }
+            @media print {
+              @page { size: A4 portrait; margin: 8mm; }
+              body { background: white !important; margin: 0 !important; padding: 0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              body.printing-proctor-distribution > *:not(#proctor-distribution-print) { display: none !important; }
+              #root, #app-root, header, nav, main, aside, .no-print { display: none !important; }
+              #proctor-distribution-print { display: block !important; position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; direction: rtl; color: #000; font-family: 'Tajawal', Arial, sans-serif; background: white !important; z-index: 999999 !important; }
+              #proctor-distribution-print * { box-shadow: none !important; }
+              .distribution-print-page { min-height: 281mm; page-break-after: always; display: flex; flex-direction: column; padding: 0; box-sizing: border-box; }
+              .distribution-official-header { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: start; border-bottom: 4px double #000; padding: 0 0 4mm; margin-bottom: 5mm; min-height: 26mm; }
+              .official-side { font-size: 10pt; line-height: 1.65; font-weight: 900; color: #000; }
+              .official-right { text-align: right; }
+              .official-left { text-align: left; direction: rtl; }
+              .official-logo { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 1mm; font-size: 8pt; font-weight: 800; color: #475569; }
+              .official-logo img { width: 31mm; height: 18mm; object-fit: contain; }
+              .distribution-print-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9pt; }
+              .distribution-print-table th, .distribution-print-table td { border: 1px solid #000; padding: 6px 5px; text-align: center; vertical-align: middle; }
+              .distribution-print-table th { background: #f1f5f9; font-weight: 900; }
+              .distribution-print-table td.name-cell { text-align: right; font-weight: 800; }
+              .distribution-meta-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 4mm 0 5mm; font-size: 9pt; }
+              .distribution-meta-table th, .distribution-meta-table td { border: 1px solid #000; padding: 5px 4px; text-align: center; vertical-align: middle; }
+              .distribution-meta-table th { background: #f1f5f9; font-weight: 900; width: 10%; }
+              .distribution-meta-table td { font-weight: 800; width: 15%; }
+              .distribution-print-footer { margin-top: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 28mm; padding-top: 14mm; break-inside: avoid; page-break-inside: avoid; font-size: 10pt; font-weight: 900; }
+              .signature-box { text-align: center; border-top: 1px solid #000; padding-top: 4mm; min-height: 28mm; }
+            }
+          `}</style>
+          {printPages.map((pageRows, pageIndex) => (
+            <div key={pageIndex} className="distribution-print-page">
+              <OfficialDistributionHeader date={distributionDateFilter || today()} />
+              <div style={{ textAlign: 'center', margin: '5mm 0 4mm' }}>
+                <h1 style={{ display: 'inline-block', margin: 0, padding: '0 26mm 2mm', borderBottom: '2px solid #000', fontSize: '15pt', fontWeight: 900 }}>
+                  توزيع المراقبين على اللجان
+                </h1>
+              </div>
+              <table className="distribution-meta-table">
+                <tbody>
+                  <tr>
+                    <th>اليوم</th>
+                    <td>{new Date(`${distributionDateFilter || today()}T12:00:00`).toLocaleDateString('ar-SA', { weekday: 'long' })}</td>
+                    <th>التاريخ</th>
+                    <td>{distributionDateFilter || today()}</td>
+                    <th>المادة</th>
+                    <td>{distributionSubjectFilter || 'الكل'}</td>
+                    <th>الفترة</th>
+                    <td>{pageRows[0]?.period || slots[0]?.period || 1}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <table className="distribution-print-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '12%' }}>رقم اللجنة</th>
+                    <th style={{ width: '58%' }}>اسم المعلم</th>
+                    <th style={{ width: '30%' }}>التوقيع</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.map(row => (
+                    <tr key={row.id}>
+                      <td style={{ fontWeight: 900 }}>{row.committeeNumber}</td>
+                      <td className="name-cell">{row.teacherName}</td>
+                      <td>&nbsp;</td>
+                    </tr>
+                  ))}
+                  {Array.from({ length: Math.max(0, 18 - pageRows.length) }).map((_, idx) => (
+                    <tr key={`empty-${pageIndex}-${idx}`}>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="distribution-print-footer">
+                <div className="signature-box">
+                  <div>وكيل الشؤون التعليمية</div>
+                  <div style={{ marginTop: '8mm', fontWeight: 800 }}>{controlHeadName}</div>
+                </div>
+                <div className="signature-box">
+                  <div>مدير المدرسة</div>
+                  <div style={{ marginTop: '8mm', fontWeight: 800 }}>{schoolManagerName}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
     </div>
   );
 };
