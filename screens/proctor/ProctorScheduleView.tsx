@@ -137,14 +137,14 @@ const ProctorScheduleView: React.FC<Props> = ({ user, supervisions, systemConfig
                   </div>
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-slate-400">{isReserve ? 'نوع التكليف' : 'اللجنة'}</p>
-                  <p className="text-3xl font-black text-slate-950 tabular-nums">{isReserve ? 'احتياط' : item.committee_number}</p>
+                  <p className="text-[10px] font-black text-slate-400">{isReserve ? 'احتياط على لجنة' : 'اللجنة'}</p>
+                  <p className="text-3xl font-black text-slate-950 tabular-nums">{item.committee_number}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-black text-slate-400">المادة / الفترة</p>
                   <p className="font-black text-slate-900">{cleanSubject(item.subject).replace(' - بديل طارئ', '')} - فترة {item.period || 1}</p>
                   <p className={`text-[11px] font-black mt-2 ${isStarted ? 'text-emerald-600' : 'text-slate-400'}`}>
-                    {isReserve ? 'تكليف احتياط يظهر لك فقط ولا يظهر في التقرير الرسمي.' : isStarted ? `وقت المباشرة: ${formatTime(item.date)}` : 'لم تعتمد المباشرة بعد'}
+                    {isReserve ? `أنت احتياط لهذه اللجنة، وسيتم استدعاؤك عند الحاجة. لا يظهر الاحتياط في التقرير الرسمي.` : isStarted ? `وقت المباشرة: ${formatTime(item.date)}` : 'لم تعتمد المباشرة بعد'}
                   </p>
                 </div>
                 <div className="flex lg:justify-end items-center">
