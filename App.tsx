@@ -430,6 +430,18 @@ const App: React.FC = () => {
   };
 
   const deleteSameDayTeacherAssignment = async (teacherId: string, date: string, period = 1) => {
+    const ids = allSupervisions
+      .filter(s => s.teacher_id === teacherId)
+      .filter(s => matchesExamDate(s.date, date))
+      .filter(s => Number(s.period || 1) === Number(period))
+      .map(s => s.id);
+
+    if (ids.length) {
+      const { error } = await supabase.from('supervision').delete().in('id', ids);
+      if (error) throw new Error(error.message);
+      return;
+    }
+
     const { error } = await supabase
       .from('supervision')
       .delete()
@@ -441,6 +453,19 @@ const App: React.FC = () => {
   };
 
   const deleteSameDayCommitteeAssignment = async (committeeNumber: string, date: string, period = 1) => {
+    const ids = allSupervisions
+      .filter(s => s.committee_number === committeeNumber)
+      .filter(s => !isReserveSupervision(s))
+      .filter(s => matchesExamDate(s.date, date))
+      .filter(s => Number(s.period || 1) === Number(period))
+      .map(s => s.id);
+
+    if (ids.length) {
+      const { error } = await supabase.from('supervision').delete().in('id', ids);
+      if (error) throw new Error(error.message);
+      return;
+    }
+
     const { error } = await supabase
       .from('supervision')
       .delete()
