@@ -160,6 +160,7 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({
   const activeAssignmentStartTime = activeAssignment
     ? assignmentStartTimes[activeAssignment.id] || activeAssignment.date
     : null;
+  const isEmergencyAssignment = !!activeAssignment && /بديل|طوارئ|احتياط|\[RESERVE\]/.test(String(activeAssignment.subject || ''));
 
   useEffect(() => {
     const timer = window.setInterval(() => setGateNow(new Date()), 30000);
@@ -215,6 +216,14 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({
     localStorage.setItem(`confirmed_assignments_${user.id}`, JSON.stringify(nextConfirmed));
     localStorage.setItem(`assignment_start_times_${user.id}`, JSON.stringify(nextStartTimes));
   };
+
+  useEffect(() => {
+    if (!activeAssignment || !isEmergencyAssignment || !isAssignmentStarted(activeAssignment.date)) return;
+    if (confirmedAssignments.includes(activeAssignment.id)) return;
+    markAssignmentStarted(activeAssignment.id, activeAssignment.date);
+    setOptimisticAssignment(activeAssignment);
+    onAlert(`تمت مباشرة اللجنة رقم ${activeAssignment.committee_number} كاحتياط / بديل طارئ.`, 'success');
+  }, [activeAssignment?.id, activeAssignment?.date, isEmergencyAssignment, confirmedAssignments]);
 
   const confirmActiveAssignment = async () => {
     if (!activeAssignment) return;
