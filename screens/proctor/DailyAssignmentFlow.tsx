@@ -176,6 +176,12 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({
     minute: '2-digit',
   });
 
+  const buildActiveDateTimestamp = () => {
+    const now = new Date();
+    const pad = (value: number) => String(value).padStart(2, '0');
+    return `${activeDate}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  };
+
   const markAssignmentStarted = (assignmentId: string, startedAt: string) => {
     const nextConfirmed = Array.from(new Set([...confirmedAssignments, assignmentId]));
     const nextStartTimes = { ...assignmentStartTimes, [assignmentId]: startedAt };
@@ -191,7 +197,7 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({
       onAlert(`يفتح اعتماد اللجنة قبل بداية الاختبار بـ 15 دقيقة، عند ${gateTimeLabel}`, 'warning');
       return;
     }
-    const startedAt = new Date().toISOString();
+    const startedAt = buildActiveDateTimestamp();
     try {
       const { error } = await supabase
         .from('supervision')
@@ -351,7 +357,7 @@ const ProctorDailyAssignmentFlow: React.FC<Props> = ({
     setIsJoining(true);
     try {
       const assignmentId = crypto.randomUUID();
-      const startedAt = new Date().toISOString();
+      const startedAt = buildActiveDateTimestamp();
       await supabase
         .from('supervision')
         .delete()
