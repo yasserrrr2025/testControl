@@ -46,8 +46,25 @@ export const db = {
     },
     upsert: async (users: any[]) => {
       for (const user of users) {
-        const { error } = await supabase.from('users').upsert(user, { onConflict: 'id' });
-        const err = handleError(error, "users.upsert");
+        if (user.id) {
+          const existing = await supabase
+            .from('users')
+            .select('id')
+            .eq('id', user.id)
+            .maybeSingle();
+          const existingErr = handleError(existing.error, "users.exists");
+          if (existingErr) throw new Error(existingErr);
+
+          if (existing.data?.id) {
+            const { error } = await supabase.from('users').update(user).eq('id', user.id);
+            const err = handleError(error, "users.update");
+            if (err) throw new Error(err);
+            continue;
+          }
+        }
+
+        const { error } = await supabase.from('users').insert(user);
+        const err = handleError(error, "users.insert");
         if (err) throw new Error(err);
       }
     },

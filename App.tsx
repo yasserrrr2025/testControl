@@ -471,8 +471,11 @@ const App: React.FC = () => {
 
     setUsers(nextUsers);
     try {
-      const { error } = await supabase.from('users').upsert(user, { onConflict: 'id' });
-      if (error) throw new Error(error.message);
+      const exists = previousUsers.some(item => item.id === user.id);
+      const result = exists
+        ? await supabase.from('users').update(user).eq('id', user.id)
+        : await supabase.from('users').insert(user);
+      if (result.error) throw new Error(result.error.message);
       await fetchData();
     } catch (error) {
       setUsers(previousUsers);
