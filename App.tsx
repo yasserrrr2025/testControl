@@ -365,6 +365,37 @@ const App: React.FC = () => {
     addLocalNotification(`تم حذف ${ids.length} توزيع بنجاح.`, 'success');
   };
 
+  const cleanEmergencySubject = (subject?: string) =>
+    String(subject || '')
+      .replace('[RESERVE]', '')
+      .replace(/\s*-\s*بديل طارئ\s*/g, '')
+      .trim();
+
+  const handleEmergencyProctorAssignment = async (teacherId: string, committeeNumber: string) => {
+    const date = systemConfig.active_exam_date || new Date().toISOString().slice(0, 10);
+    const existingCommitteeAssignment = allSupervisions
+      .filter(s => !isReserveSupervision(s))
+      .find(s => s.committee_number === committeeNumber && matchesExamDate(s.date, date));
+    const period = Number(existingCommitteeAssignment?.period || examSchedule.find(exam => exam.exam_date === date)?.period || 1);
+    const scheduledExam = examSchedule.find(exam => exam.exam_date === date && Number(exam.period || 1) === period)
+      || examSchedule.find(exam => exam.exam_date === date);
+    const subject = cleanEmergencySubject(existingCommitteeAssignment?.subject)
+      || cleanEmergencySubject(scheduledExam?.subject)
+      || 'اختبار';
+
+    await deleteSameDayTeacherAssignment(teacherId, date, period);
+    await deleteSameDayCommitteeAssignment(committeeNumber, date, period);
+    await db.supervision.insert({
+      id: crypto.randomUUID(),
+      teacher_id: teacherId,
+      committee_number: committeeNumber,
+      date: buildExamDateTimestamp(date),
+      period,
+      subject,
+    });
+    await fetchData();
+  };
+
   const acknowledgeAbsenceReceipt = async (absence: Absence, receiver: User) => {
     const note = buildAbsenceReceiptNote(
       receiver.full_name,
@@ -429,6 +460,23 @@ const App: React.FC = () => {
         localStorage.setItem('currentUser', JSON.stringify(currentUser));
       }
       addLocalNotification(error.message || 'تعذر حفظ الصلاحيات، تمت إعادة الحالة السابقة.', 'error');
+    }
+  };
+
+  const saveSingleUser = async (user: User) => {
+    const previousUsers = users;
+    const nextUsers = previousUsers.some(item => item.id === user.id)
+      ? previousUsers.map(item => item.id === user.id ? user : item)
+      : [...previousUsers, user];
+
+    setUsers(nextUsers);
+    try {
+      const { error } = await supabase.from('users').upsert(user, { onConflict: 'id' });
+      if (error) throw new Error(error.message);
+      await fetchData();
+    } catch (error) {
+      setUsers(previousUsers);
+      throw error;
     }
   };
 
@@ -507,8 +555,8 @@ const App: React.FC = () => {
       );
       case 'proctor-excellence': return <AdminProctorPerformance users={users} supervisions={supervisions} deliveryLogs={deliveryLogs} absences={absences} systemConfig={systemConfig} />;
       case 'committee-labels': return <CommitteeLabelsPrint students={students} />;
-      case 'control-manager': return <ControlManager users={users} deliveryLogs={deliveryLogs} students={students} requests={controlRequests} onBroadcast={(m, t) => db.notifications.broadcast(m, t, currentUser.full_name)} onUpdateUserGrades={async (userId, grades) => { const uMatch = users.find(u => u.id === userId); if (uMatch) { await db.users.upsert([{ ...uMatch, assigned_grades: grades }]); await fetchData(); } }} systemConfig={systemConfig} absences={absences} supervisions={supervisions} smartSupervisions={allSupervisions} examSchedule={examSchedule} onUpsertExamSchedule={async (item) => { await db.examSchedule.upsert(item); await fetchData(); }} onDeleteExamSchedule={async (id) => { await db.examSchedule.delete(id); await fetchData(); }} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} setSystemConfig={async (cfg) => { await db.config.upsert(cfg); await fetchData(); }} onRemoveSupervision={async (id) => { await deleteSameDayTeacherAssignment(id, systemConfig.active_exam_date || new Date().toISOString().slice(0, 10)); await fetchData(); }} onAssignProctor={async (tid, cid) => { const date = systemConfig.active_exam_date || new Date().toISOString().slice(0, 10); await deleteSameDayTeacherAssignment(tid, date); await deleteSameDayCommitteeAssignment(cid, date); await db.supervision.insert({ id: crypto.randomUUID(), teacher_id: tid, committee_number: cid, date: buildExamDateTimestamp(date), period: 1, subject: 'اختبار - بديل طارئ' }); await fetchData(); }} onCommitSmartDistribution={handleCommitSmartDistribution} onDeleteSmartDistributions={deleteSmartDistributions} />;
-      case 'teachers': return <AdminUsersManager users={users} setUsers={saveUsersOptimistic} students={students} onDeleteUser={async (id: string) => { if(confirm('حذف؟')) { await db.users.delete(id); await fetchData(); } }} onAlert={addLocalNotification} />;
+      case 'control-manager': return <ControlManager users={users} deliveryLogs={deliveryLogs} students={students} requests={controlRequests} onBroadcast={(m, t) => db.notifications.broadcast(m, t, currentUser.full_name)} onUpdateUserGrades={async (userId, grades) => { const uMatch = users.find(u => u.id === userId); if (uMatch) { await db.users.upsert([{ ...uMatch, assigned_grades: grades }]); await fetchData(); } }} systemConfig={systemConfig} absences={absences} supervisions={supervisions} smartSupervisions={allSupervisions} examSchedule={examSchedule} onUpsertExamSchedule={async (item) => { await db.examSchedule.upsert(item); await fetchData(); }} onDeleteExamSchedule={async (id) => { await db.examSchedule.delete(id); await fetchData(); }} setDeliveryLogs={async (log) => { await db.deliveryLogs.upsert(log); await fetchData(); }} setSystemConfig={async (cfg) => { await db.config.upsert(cfg); await fetchData(); }} onRemoveSupervision={async (id) => { await deleteSameDayTeacherAssignment(id, systemConfig.active_exam_date || new Date().toISOString().slice(0, 10)); await fetchData(); }} onAssignProctor={handleEmergencyProctorAssignment} onUpdateSmartDistribution={async (id, teacherId) => { const { error } = await supabase.from('supervision').update({ teacher_id: teacherId }).eq('id', id); if (error) throw new Error(error.message); await fetchData(); }} onCommitSmartDistribution={handleCommitSmartDistribution} onDeleteSmartDistributions={deleteSmartDistributions} />;
+      case 'teachers': return <AdminUsersManager users={users} setUsers={saveUsersOptimistic} students={students} onSaveUser={saveSingleUser} onDeleteUser={async (id: string) => { if(confirm('حذف؟')) { await db.users.delete(id); await fetchData(); } }} onAlert={addLocalNotification} />;
       case 'students': return <AdminStudentsManager students={students} setStudents={async (s: any) => { await db.students.upsert(typeof s === 'function' ? s(students) : s); await fetchData(); }} onDeleteStudent={async (id: string) => { if(confirm('حذف؟')) { await db.students.delete(id); await fetchData(); } }} onAlert={addLocalNotification} />;
       case 'committees': return <AdminSupervisionMonitor supervisions={supervisions} users={users} students={students} absences={absences} deliveryLogs={deliveryLogs} />;
       case 'daily-reports': return <AdminDailyReports supervisions={supervisions} users={users} students={students} deliveryLogs={deliveryLogs} systemConfig={systemConfig} committeeReports={committeeReports} absences={absences} controlRequests={controlRequests} />;

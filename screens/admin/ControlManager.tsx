@@ -40,12 +40,13 @@ interface ControlManagerProps {
   onAssignProctor: (teacherId: string, committeeNumber: string) => Promise<void>;
   onCommitSmartDistribution: (items: SmartDistributionItem[], replaceExisting: boolean) => Promise<void>;
   onDeleteSmartDistributions?: (ids: string[]) => Promise<void>;
+  onUpdateSmartDistribution?: (id: string, teacherId: string) => Promise<void>;
   onUpsertExamSchedule?: (item: Partial<ExamSchedule>) => Promise<void>;
   onDeleteExamSchedule?: (id: string) => Promise<void>;
 }
 
 const ControlManager: React.FC<ControlManagerProps> = ({ 
-  users, deliveryLogs, students, onBroadcast, onUpdateUserGrades, systemConfig, absences, supervisions, smartSupervisions, examSchedule = [], requests = [], setDeliveryLogs, setSystemConfig, onRemoveSupervision, onAssignProctor, onCommitSmartDistribution, onDeleteSmartDistributions, onUpsertExamSchedule, onDeleteExamSchedule
+  users, deliveryLogs, students, onBroadcast, onUpdateUserGrades, systemConfig, absences, supervisions, smartSupervisions, examSchedule = [], requests = [], setDeliveryLogs, setSystemConfig, onRemoveSupervision, onAssignProctor, onCommitSmartDistribution, onDeleteSmartDistributions, onUpdateSmartDistribution, onUpsertExamSchedule, onDeleteExamSchedule
 }) => {
   type ControlTab = 'cockpit' | 'ops-center' | 'assignments' | 'emergency-receipt' | 'comms' | 'proctors-mgmt';
   const [activeTab, setActiveTabState] = useState<ControlTab>(() => {
@@ -380,6 +381,7 @@ const ControlManager: React.FC<ControlManagerProps> = ({
              onDeleteExamSchedule={onDeleteExamSchedule}
              onCommit={onCommitSmartDistribution}
              onDeleteSupervisions={onDeleteSmartDistributions}
+             onUpdateSupervision={onUpdateSmartDistribution}
            />
 
            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">

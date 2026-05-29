@@ -1,11 +1,11 @@
 
 // ═══════════════════════════════════════════════════════
-//   الكنترول المطور — Service Worker v8
+//   الكنترول المطور — Service Worker v9
 //   استراتيجية: Network First مع Offline Fallback
 // ═══════════════════════════════════════════════════════
 
-const CACHE_NAME = 'control-v8';
-const STATIC_CACHE = 'control-static-v8';
+const CACHE_NAME = 'control-v9';
+const STATIC_CACHE = 'control-static-v9';
 
 // الأصول الأساسية التي تعمل بدون إنترنت
 const STATIC_ASSETS = [

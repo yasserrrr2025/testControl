@@ -119,16 +119,7 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
 
     if (latestDelivery && latestDelivery.id !== seen.delivery) {
       latestSeenRef.current = { ...latestSeenRef.current, delivery: latestDelivery.id };
-      const label = latestDelivery.status === 'CONFIRMED'
-        ? `تم الاستلام النهائي: لجنة ${latestDelivery.committee_number} · ${latestDelivery.grade} · المستلم: ${latestDelivery.teacher_name}`
-        : `إغلاق جديد: لجنة ${latestDelivery.committee_number} · ${latestDelivery.grade}`;
-
-      if (latestDelivery.status === 'CONFIRMED' && pinnedScene === 'map') {
-        setPriorityScene({ scene: 'map', until: Date.now() + 8000, label });
-        return;
-      }
-
-      showPriority(latestDelivery.status === 'CONFIRMED' ? 'timeline' : 'map', 8000, label);
+      return;
     }
   }, [absences, deliveryLogs, pinnedScene, requests]);
 
@@ -255,6 +246,21 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
     }));
     return [...deliveryEvents, ...requestEvents, ...absenceEvents].sort((a, b) => b.time.localeCompare(a.time)).slice(0, 12);
   }, [absences, deliveryLogs, requests]);
+
+  const alertBoardItems = useMemo(() => {
+    return requests.map(req => ({
+      id: `request-${req.id}`,
+      time: req.time,
+      committee: req.committee,
+      title: req.status === 'DONE' ? 'بلاغ مغلق' : 'بلاغ كنترول',
+      text: req.text,
+      source: req.from,
+      tone: req.status === 'DONE' ? 'done' : 'request',
+      status: req.status,
+    }))
+      .sort((a, b) => b.time.localeCompare(a.time))
+      .slice(0, 8);
+  }, [requests]);
 
   const newsItems = useMemo(() => {
     const items = [
@@ -629,14 +635,36 @@ const ControlRoomMonitor2: React.FC<Props> = ({ absences, supervisions, users, d
                   </div>
                 </div>
                 <div className="space-y-4 overflow-hidden">
-                  {[...requests].sort((a, b) => b.time.localeCompare(a.time)).length ? [...requests].sort((a, b) => b.time.localeCompare(a.time)).slice(0, 6).map(req => (
-                    <div key={req.id} className={`rounded-[2rem] border p-5 ${req.status === 'DONE' ? 'border-white/10 bg-white/5 opacity-60' : 'border-red-300/30 bg-red-600/20'}`}>
+                  {alertBoardItems.length ? alertBoardItems.map(item => (
+                    <div
+                      key={item.id}
+                      className={`rounded-[2rem] border p-5 ${
+                        item.tone === 'done'
+                          ? 'border-white/10 bg-white/5 opacity-60'
+                          : item.tone === 'late'
+                            ? 'border-amber-300/30 bg-amber-500/20'
+                            : item.tone === 'absence'
+                              ? 'border-rose-300/30 bg-rose-600/20'
+                              : 'border-red-300/30 bg-red-600/20'
+                      }`}
+                    >
                       <div className="mb-3 flex items-center justify-between">
-                        <span className="rounded-2xl bg-slate-950 px-5 py-2 text-xl font-black">لجنة {req.committee}</span>
-                        <span className="font-mono text-sm font-black text-red-100">{formatTime(req.time)}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="rounded-2xl bg-slate-950 px-5 py-2 text-xl font-black">لجنة {item.committee}</span>
+                          <span className={`rounded-2xl px-4 py-2 text-xs font-black ${
+                            item.tone === 'late'
+                              ? 'bg-amber-500'
+                              : item.tone === 'absence'
+                                ? 'bg-rose-500'
+                                : item.tone === 'done'
+                                  ? 'bg-slate-500'
+                                  : 'bg-red-600'
+                          }`}>{item.title}</span>
+                        </div>
+                        <span className="font-mono text-sm font-black text-red-100">{formatTime(item.time)}</span>
                       </div>
-                      <p className="text-2xl font-black leading-9">{req.text}</p>
-                      <p className="mt-2 text-xs font-black text-red-100/70">{req.from}</p>
+                      <p className="text-2xl font-black leading-9">{item.text}</p>
+                      <p className="mt-2 text-xs font-black text-red-100/70">{item.source}</p>
                     </div>
                   )) : (
                     <div className="grid h-96 place-items-center rounded-[3rem] border border-emerald-400/20 bg-emerald-500/10 text-center">

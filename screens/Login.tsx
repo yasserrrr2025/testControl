@@ -52,11 +52,6 @@ const Login: React.FC<Props> = ({ onLogin, onAlert }) => {
       onAlert('يرجى إدخال رقم الهوية', 'warning');
       return;
     }
-    if (id.length < 6) {
-      onAlert('رقم الهوية المدخل غير مكتمل.', 'warning');
-      return;
-    }
-
     setIsLoading(true);
     try {
       const user = await db.users.getById(id);

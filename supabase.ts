@@ -26,18 +26,30 @@ export const db = {
       return (data || []) as User[];
     },
     getById: async (nationalId: string) => {
+      const cleanId = String(nationalId || '').replace(/\D/g, '');
       const { data, error } = await supabase.rpc('login_by_national_id', {
-        p_national_id: nationalId,
+        p_national_id: cleanId,
         p_user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
       }).maybeSingle();
       const err = handleError(error, "users.getById");
       if (err) throw new Error(err);
-      return data as User;
+      if (data) return data as User;
+
+      const direct = await supabase
+        .from('users')
+        .select('*')
+        .eq('national_id', cleanId)
+        .maybeSingle();
+      const directErr = handleError(direct.error, "users.getById.direct");
+      if (directErr) throw new Error(directErr);
+      return direct.data as User;
     },
     upsert: async (users: any[]) => {
-      const { error } = await supabase.from('users').upsert(users, { onConflict: 'national_id' });
-      const err = handleError(error, "users.upsert");
-      if (err) throw new Error(err);
+      for (const user of users) {
+        const { error } = await supabase.from('users').upsert(user, { onConflict: 'id' });
+        const err = handleError(error, "users.upsert");
+        if (err) throw new Error(err);
+      }
     },
     delete: async (id: string) => {
       const { error } = await supabase.from('users').delete().eq('id', id);

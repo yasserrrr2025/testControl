@@ -11,9 +11,10 @@ interface Props {
   onAlert: any;
   students: Student[];
   onDeleteUser: (id: string) => void;
+  onSaveUser?: (user: User) => Promise<void>;
 }
 
-const AdminUsersManager: React.FC<Props> = ({ users, setUsers, onAlert, students, onDeleteUser }) => {
+const AdminUsersManager: React.FC<Props> = ({ users, setUsers, onAlert, students, onDeleteUser, onSaveUser }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -40,7 +41,7 @@ const AdminUsersManager: React.FC<Props> = ({ users, setUsers, onAlert, students
     setIsModalOpen(true);
   };
 
-  const handleManualSubmit = (e: React.FormEvent) => {
+  const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.national_id || !formData.full_name) {
       onAlert('يرجى إكمال البيانات الأساسية');
@@ -57,13 +58,21 @@ const AdminUsersManager: React.FC<Props> = ({ users, setUsers, onAlert, students
       assigned_grades: editingUser?.assigned_grades || []
     };
 
-    setUsers((prev: User[]) => {
-      if (editingUser) return prev.map(u => u.id === editingUser.id ? userData : u);
-      return [...prev, userData];
-    });
+    try {
+      if (onSaveUser) {
+        await onSaveUser(userData);
+      } else {
+        await setUsers((prev: User[]) => {
+          if (editingUser) return prev.map(u => u.id === editingUser.id ? userData : u);
+          return [...prev, userData];
+        });
+      }
 
-    onAlert(editingUser ? 'تم تحديث البيانات' : 'تمت الإضافة بنجاح');
-    setIsModalOpen(false);
+      onAlert(editingUser ? 'تم تحديث البيانات' : 'تمت الإضافة بنجاح');
+      setIsModalOpen(false);
+    } catch (err: any) {
+      onAlert(err?.message || 'تعذر حفظ بيانات المستخدم');
+    }
   };
 
   const updateRole = (userId: string, role: UserRole) => {

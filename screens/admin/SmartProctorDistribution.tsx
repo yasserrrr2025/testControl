@@ -53,9 +53,12 @@ interface Props {
   onDeleteExamSchedule?: (id: string) => Promise<void>;
   onCommit: (items: SmartDistributionItem[], replaceExisting: boolean) => Promise<void>;
   onDeleteSupervisions?: (ids: string[]) => Promise<void>;
+  onUpdateSupervision?: (id: string, teacherId: string) => Promise<void>;
 }
 
 const isReserveSupervision = (item: Supervision) => String(item.subject || '').includes('[RESERVE]');
+const examScopeKey = (date: string, period: number | string = 1, subject = 'اختبار') =>
+  `${date || today()}__${Number(period) || 1}__${String(subject || 'اختبار').trim() || 'اختبار'}`;
 const cleanSubject = (subject?: string) => String(subject || 'اختبار').replace('[RESERVE]', '').trim() || 'اختبار';
 
 const today = () => {
@@ -112,6 +115,7 @@ const SmartProctorDistribution: React.FC<Props> = ({
   onDeleteExamSchedule,
   onCommit,
   onDeleteSupervisions,
+  onUpdateSupervision,
 }) => {
   const defaultDate = activeDate || today();
   const committees = useMemo(
@@ -124,6 +128,7 @@ const SmartProctorDistribution: React.FC<Props> = ({
     { id: crypto.randomUUID(), date: defaultDate, subject: 'اختبار', period: 1 },
   ]);
   const [selectedExclusionDate, setSelectedExclusionDate] = useState(defaultDate);
+  const [selectedExclusionScope, setSelectedExclusionScope] = useState(examScopeKey(defaultDate, 1, 'اختبار'));
   const [exclusionSearch, setExclusionSearch] = useState('');
   const [excludedByDate, setExcludedByDate] = useState<Record<string, string[]>>(() => {
     try {
@@ -183,7 +188,25 @@ const SmartProctorDistribution: React.FC<Props> = ({
     [slots, defaultDate],
   );
 
-  const excludedIdsForSelectedDate = excludedByDate[selectedExclusionDate] || [];
+  const slotScopes = useMemo(
+    () => slots
+      .map(slot => ({
+        key: examScopeKey(slot.date || defaultDate, slot.period || 1, slot.subject || 'اختبار'),
+        label: `${slot.date || defaultDate} | ${slot.subject || 'اختبار'} | فترة ${slot.period || 1}`,
+        slot,
+      }))
+      .sort((a, b) => {
+        const byDate = a.slot.date.localeCompare(b.slot.date);
+        if (byDate !== 0) return byDate;
+        const bySubject = a.slot.subject.localeCompare(b.slot.subject, 'ar');
+        if (bySubject !== 0) return bySubject;
+        return Number(a.slot.period) - Number(b.slot.period);
+      }),
+    [slots, defaultDate],
+  );
+
+  const selectedScopeSlot = slotScopes.find(scope => scope.key === selectedExclusionScope)?.slot || slots[0];
+  const excludedIdsForSelectedScope = excludedByDate[selectedExclusionScope] || [];
   const sortedProctors = useMemo(() => [...proctors].sort((a, b) => a.full_name.localeCompare(b.full_name, 'ar')), [proctors]);
   const filteredProctors = useMemo(() => {
     const q = exclusionSearch.trim().toLowerCase();
@@ -191,12 +214,17 @@ const SmartProctorDistribution: React.FC<Props> = ({
     return sortedProctors.filter(p => p.full_name.toLowerCase().includes(q) || String(p.national_id || '').includes(q));
   }, [sortedProctors, exclusionSearch]);
 
-  const getEligibleProctors = (date: string) => {
-    const excluded = excludedByDate[date] || [];
-    return proctors.filter(p => !excluded.includes(p.id));
+  const getEligibleProctors = (slotOrDate: SmartExamSlot | string) => {
+    const slot = typeof slotOrDate === 'string'
+      ? { date: slotOrDate, period: 1, subject: 'اختبار' }
+      : slotOrDate;
+    const scoped = excludedByDate[examScopeKey(slot.date, slot.period, slot.subject)] || [];
+    const legacyDateWide = excludedByDate[slot.date] || [];
+    const excluded = new Set([...scoped, ...legacyDateWide]);
+    return proctors.filter(p => !excluded.has(p.id));
   };
 
-  const eligibleProctors = getEligibleProctors(selectedExclusionDate);
+  const eligibleProctors = selectedScopeSlot ? getEligibleProctors(selectedScopeSlot) : proctors;
 
   const subjectOptions = useMemo(
     () => Array.from(new Set(primarySupervisions.map(s => cleanSubject(s.subject)).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ar')),
@@ -217,6 +245,7 @@ const SmartProctorDistribution: React.FC<Props> = ({
           subject: cleanSubject(s.subject),
           period: s.period || 1,
           committeeNumber: s.committee_number,
+          teacherId: s.teacher_id,
           teacherName: teacher?.full_name || 'مراقب غير معروف',
           assignedCount,
           previousCount,
@@ -243,6 +272,7 @@ const SmartProctorDistribution: React.FC<Props> = ({
         subject: cleanSubject(s.subject),
         period: s.period || 1,
         committeeNumber: s.committee_number,
+        teacherId: s.teacher_id,
         teacherName: users.find(u => u.id === s.teacher_id)?.full_name || 'مراقب غير معروف',
       }))
       .sort((a, b) => {
@@ -253,6 +283,57 @@ const SmartProctorDistribution: React.FC<Props> = ({
         return Number(a.committeeNumber) - Number(b.committeeNumber);
       });
   }, [reserveSupervisions, users, distributionDateFilter, distributionSubjectFilter]);
+
+  const approvedRows = useMemo(
+    () => [
+      ...committedRows.map(row => ({ ...row, kind: 'PRIMARY' as const, kindLabel: 'أساسي' })),
+      ...reserveCommittedRows.map(row => ({ ...row, kind: 'RESERVE' as const, kindLabel: 'احتياط', assignedCount: 0, previousCount: 0 })),
+    ],
+    [committedRows, reserveCommittedRows],
+  );
+
+  const approvedGroups = useMemo(() => {
+    const groups = new Map<string, { key: string; date: string; subject: string; period: number; rows: typeof approvedRows }>();
+    approvedRows.forEach(row => {
+      const key = examScopeKey(row.date, row.period, row.subject);
+      if (!groups.has(key)) groups.set(key, { key, date: row.date, subject: row.subject, period: row.period, rows: [] as typeof approvedRows });
+      groups.get(key)!.rows.push(row);
+    });
+    return Array.from(groups.values())
+      .map(group => ({
+        ...group,
+        rows: [...group.rows].sort((a, b) => {
+          if (a.kind !== b.kind) return a.kind === 'PRIMARY' ? -1 : 1;
+          return Number(a.committeeNumber) - Number(b.committeeNumber);
+        }),
+      }))
+      .sort((a, b) => {
+        const byDate = a.date.localeCompare(b.date);
+        if (byDate !== 0) return byDate;
+        const bySubject = a.subject.localeCompare(b.subject, 'ar');
+        if (bySubject !== 0) return bySubject;
+        return Number(a.period) - Number(b.period);
+      });
+  }, [approvedRows]);
+
+  const approvedLoadRows = useMemo(() => {
+    return proctors
+      .map(p => {
+        const primary = primarySupervisions.filter(s => s.teacher_id === p.id).length;
+        const reserve = reserveSupervisions.filter(s => s.teacher_id === p.id).length;
+        return { id: p.id, name: p.full_name, primary, reserve, total: primary + reserve };
+      })
+      .sort((a, b) => {
+        if (b.total !== a.total) return b.total - a.total;
+        if (b.primary !== a.primary) return b.primary - a.primary;
+        return a.name.localeCompare(b.name, 'ar');
+      });
+  }, [proctors, primarySupervisions, reserveSupervisions]);
+
+  const approvedLoadById = useMemo(
+    () => Object.fromEntries(approvedLoadRows.map(row => [row.id, row])),
+    [approvedLoadRows],
+  );
 
   const sortedPreview = useMemo(() => {
     const q = previewTeacherFilter.trim().toLowerCase();
@@ -367,6 +448,7 @@ const SmartProctorDistribution: React.FC<Props> = ({
       return [...prev, { id: crypto.randomUUID(), date: exam.exam_date, subject: exam.subject || 'اختبار', period: Number(exam.period) || 1 }];
     });
     setSelectedExclusionDate(exam.exam_date);
+    setSelectedExclusionScope(examScopeKey(exam.exam_date, exam.period || 1, exam.subject || 'اختبار'));
   };
 
   const saveExamSchedule = async () => {
@@ -385,6 +467,11 @@ const SmartProctorDistribution: React.FC<Props> = ({
 
   const updateSlot = (id: string, patch: Partial<SmartExamSlot>) => {
     if (patch.date) setSelectedExclusionDate(patch.date);
+    const current = slots.find(slot => slot.id === id);
+    if (current) {
+      const next = { ...current, ...patch };
+      setSelectedExclusionScope(examScopeKey(next.date, next.period, next.subject));
+    }
     setSlots(prev => prev.map(slot => slot.id === id ? { ...slot, ...patch } : slot));
   };
 
@@ -411,7 +498,7 @@ const SmartProctorDistribution: React.FC<Props> = ({
     });
 
     orderedSlots.forEach(slot => {
-      const eligible = getEligibleProctors(slot.date);
+      const eligible = getEligibleProctors(slot);
       if (!eligible.length) return;
 
       const usedThisSlot = new Set(
@@ -546,7 +633,7 @@ const SmartProctorDistribution: React.FC<Props> = ({
         .filter(p => p.slotId === item.slotId && p.id !== item.id)
         .map(p => p.teacherId),
     );
-    const candidate = getEligibleProctors(item.date)
+    const candidate = getEligibleProctors({ id: item.slotId, date: item.date, subject: item.subject, period: item.period })
       .filter(p => p.id !== item.teacherId)
       .map(p => ({
         user: p,
@@ -595,6 +682,27 @@ const SmartProctorDistribution: React.FC<Props> = ({
     if (error) alert(error.message);
   };
 
+  const updateApprovedTeacher = async (row: { id: string; committeeNumber: string; teacherId: string; kindLabel: string }, teacherId: string) => {
+    if (!teacherId || teacherId === row.teacherId) return;
+    const teacher = users.find(u => u.id === teacherId);
+    if (!teacher) return;
+    const currentLoad = approvedLoadById[teacherId] || { primary: 0, reserve: 0, total: 0 };
+    const message = [
+      `سيتم نقل ${row.kindLabel} لجنة ${row.committeeNumber} إلى: ${teacher.full_name}`,
+      `إسناداته الحالية: ${currentLoad.primary} أساسي، ${currentLoad.reserve} احتياط، الإجمالي ${currentLoad.total}.`,
+      'هل تريد اعتماد النقل؟',
+    ].join('\n');
+    if (!confirm(message)) return;
+
+    if (onUpdateSupervision) {
+      await onUpdateSupervision(row.id, teacherId);
+      return;
+    }
+
+    const { error } = await supabase.from('supervision').update({ teacher_id: teacherId }).eq('id', row.id);
+    if (error) alert(error.message);
+  };
+
   const printOfficialDistribution = () => {
     if (!committedRows.length) return;
     setIsPrintingDistribution(true);
@@ -611,6 +719,13 @@ const SmartProctorDistribution: React.FC<Props> = ({
     document.body.classList.toggle('printing-proctor-distribution', isPrintingDistribution);
     return () => document.body.classList.remove('printing-proctor-distribution');
   }, [isPrintingDistribution]);
+
+  useEffect(() => {
+    if (slotScopes.length && !slotScopes.some(scope => scope.key === selectedExclusionScope)) {
+      setSelectedExclusionScope(slotScopes[0].key);
+      setSelectedExclusionDate(slotScopes[0].slot.date || defaultDate);
+    }
+  }, [slotScopes, selectedExclusionScope, defaultDate]);
 
   const primaryPreviewCount = preview.filter(item => item.assignmentType !== 'RESERVE').length;
   const reservePreviewCount = preview.filter(item => item.assignmentType === 'RESERVE').length;
@@ -706,11 +821,15 @@ const SmartProctorDistribution: React.FC<Props> = ({
           <div className="p-5 rounded-2xl bg-slate-950 text-white">
             <div className="flex items-center justify-between gap-3 mb-4">
               <h4 className="font-black flex items-center gap-2"><UserMinus size={18} /> المستبعدون حسب تاريخ الاختبار</h4>
-              <span className="text-[10px] font-black text-slate-400">{excludedIdsForSelectedDate.length} / {proctors.length}</span>
+              <span className="text-[10px] font-black text-slate-400">{excludedIdsForSelectedScope.length} / {proctors.length}</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-[1fr_1.2fr] gap-2 mb-3">
-              <select value={selectedExclusionDate} onChange={e => setSelectedExclusionDate(e.target.value)} className="w-full p-3 rounded-xl bg-white/10 border border-white/10 text-xs font-black outline-none">
-                {slotDates.map(date => <option key={date} value={date} className="text-slate-900">{date}</option>)}
+              <select value={selectedExclusionScope} onChange={e => {
+                const scope = slotScopes.find(item => item.key === e.target.value);
+                setSelectedExclusionScope(e.target.value);
+                if (scope) setSelectedExclusionDate(scope.slot.date);
+              }} className="w-full p-3 rounded-xl bg-white/10 border border-white/10 text-xs font-black outline-none">
+                {slotScopes.map(scope => <option key={scope.key} value={scope.key} className="text-slate-900">{scope.label}</option>)}
               </select>
               <div className="relative">
                 <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -719,9 +838,9 @@ const SmartProctorDistribution: React.FC<Props> = ({
             </div>
             <div className="max-h-52 overflow-y-auto custom-scrollbar space-y-2">
               {filteredProctors.map(p => {
-                const excluded = excludedIdsForSelectedDate.includes(p.id);
+                const excluded = excludedIdsForSelectedScope.includes(p.id);
                 return (
-                  <button key={p.id} onClick={() => toggleExcluded(selectedExclusionDate, p.id)} className={`w-full p-3 rounded-xl text-right text-xs font-black border transition-all ${excluded ? 'bg-red-500/15 border-red-400/30 text-red-100' : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'}`}>
+                  <button key={p.id} onClick={() => toggleExcluded(selectedExclusionScope, p.id)} className={`w-full p-3 rounded-xl text-right text-xs font-black border transition-all ${excluded ? 'bg-red-500/15 border-red-400/30 text-red-100' : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'}`}>
                     <span className="block">{p.full_name}</span>
                     <span className="block text-[9px] mt-1 opacity-60">{p.national_id}</span>
                   </button>
@@ -865,6 +984,94 @@ const SmartProctorDistribution: React.FC<Props> = ({
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-[.85fr_1.15fr] gap-6 no-print">
+        <div className="bg-white rounded-[3rem] border border-slate-100 shadow-xl overflow-hidden">
+          <div className="p-6 border-b border-slate-100">
+            <h3 className="text-xl font-black text-slate-950">إحصائية الإسناد لكل مراقب</h3>
+            <p className="text-xs font-bold text-slate-400 mt-1">توضح عدد اللجان الأساسية والاحتياط بعد الاعتماد والمعاينة حتى تظهر العدالة قبل أي قرار.</p>
+          </div>
+          <div className="overflow-x-auto max-h-[460px]">
+            <table className="w-full text-right border-collapse">
+              <thead className="sticky top-0 bg-slate-50 z-10">
+                <tr className="text-[10px] font-black text-slate-500">
+                  <th className="p-4 border-b">المراقب</th>
+                  <th className="p-4 border-b">أساسي</th>
+                  <th className="p-4 border-b">احتياط</th>
+                  <th className="p-4 border-b">الإجمالي</th>
+                </tr>
+              </thead>
+              <tbody>
+                {approvedLoadRows.map(row => (
+                  <tr key={row.id} className="border-b border-slate-100">
+                    <td className="p-4 font-black text-slate-900">{row.name}</td>
+                    <td className="p-4 font-black tabular-nums text-blue-600">{row.primary}</td>
+                    <td className="p-4 font-black tabular-nums text-violet-600">{row.reserve}</td>
+                    <td className="p-4 font-black tabular-nums">{row.total}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-[3rem] border border-slate-100 shadow-xl overflow-hidden">
+          <div className="p-6 border-b border-slate-100">
+            <h3 className="text-xl font-black text-slate-950">لوحة التحكم بعد الاعتماد</h3>
+            <p className="text-xs font-bold text-slate-400 mt-1">يمكن نقل المراقب أو تغييره حتى بعد الربط. قبل النقل يظهر تنبيه بعدد إسنادات المراقب الجديد.</p>
+          </div>
+          <div className="p-5 space-y-5 max-h-[520px] overflow-y-auto custom-scrollbar">
+            {approvedGroups.length ? approvedGroups.map(group => (
+              <div key={group.key} className="rounded-[2rem] border border-slate-100 bg-slate-50/70 p-4">
+                <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="font-black text-slate-950">{group.subject}</p>
+                    <p className="text-[10px] font-black text-slate-400">{group.date} | فترة {group.period}</p>
+                  </div>
+                  <span className="rounded-full bg-white px-4 py-2 text-[10px] font-black text-slate-600">{group.rows.length} إسناد</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {group.rows.map(row => {
+                    const load = approvedLoadById[row.teacherId] || { primary: 0, reserve: 0, total: 0 };
+                    return (
+                      <div key={`${row.kind}-${row.id}`} className={`rounded-2xl border p-4 ${row.kind === 'RESERVE' ? 'border-violet-100 bg-violet-50/70' : 'border-blue-100 bg-white'}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <span className={`inline-flex rounded-full px-3 py-1 text-[10px] font-black text-white ${row.kind === 'RESERVE' ? 'bg-violet-600' : 'bg-blue-600'}`}>{row.kindLabel}</span>
+                            <p className="mt-2 text-xl font-black text-slate-950">لجنة {row.committeeNumber}</p>
+                            <p className="text-[10px] font-black text-slate-400">حمله الحالي: {load.primary} أساسي، {load.reserve} احتياط</p>
+                          </div>
+                          <button onClick={() => confirm(`حذف إسناد لجنة ${row.committeeNumber}؟`) && deleteSupervisionRows([row.id])} className="rounded-xl bg-red-50 p-3 text-red-600">
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                        <select
+                          value={row.teacherId}
+                          onChange={e => updateApprovedTeacher(row, e.target.value)}
+                          className="mt-4 w-full rounded-2xl border border-slate-200 bg-white p-3 text-xs font-black text-slate-900 outline-none"
+                        >
+                          {sortedProctors.map(p => {
+                            const pLoad = approvedLoadById[p.id] || { primary: 0, reserve: 0, total: 0 };
+                            return (
+                              <option key={p.id} value={p.id}>
+                                {p.full_name} - {pLoad.primary} أساسي / {pLoad.reserve} احتياط
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )) : (
+              <div className="rounded-[2rem] border border-dashed border-slate-200 p-10 text-center font-black text-slate-400">
+                لا توجد توزيعات معتمدة ضمن الفلتر الحالي.
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
